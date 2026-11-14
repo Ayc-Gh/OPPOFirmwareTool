@@ -74,4 +74,23 @@ python build.py
 
 ADB 已附带。也可将 Android 官方 platform-tools 的 `adb.exe`、`AdbWinApi.dll`、`AdbWinUsbApi.dll` 放到 `tools`，或在界面指定路径。`setup_tools.py` 下载锁定版本引擎，并核验 ssut 发布方提供的 checksum；xishang 发布没有独立 checksum，记录通过 HTTPS 获取文件的本地 SHA256。请查看 `tools/versions.json`。
 
+## 鸣谢与参考项目 (Acknowledgments)
+
+本项目在研发与迭代过程中深度参考并吸收了开源社区与上游项目的优秀成果，谨向以下项目及作者致以诚挚敬意与感谢：
+
+- **[OPlus-Tracker](https://github.com/JerryTse-OSS/OPlus-Tracker)**（作者：**Jerry Tse** 及贡献者，LGPL-3.0）  
+  OPPO / 一加 / realme OTA 查询协议与官方降级协议逆向研究的核心参考。本项目在其基础上重构了结构化响应访问、流式重定向、受限退避与安全降级校验机制。
+- **[payload-dumper-go](https://github.com/ssut/payload-dumper-go)**（作者：**ssut** 及贡献者，Apache-2.0）  
+  提供卓越的本地 OTA payload 解析、增量差分镜像合成以及分区哈希严格校验能力。
+- **[payload-dumper-go](https://github.com/xishang0128/payload-dumper-go)**（作者：**xishang0128** 及贡献者，GPL-3.0）  
+  原生 HTTP Range 在线解包实现，为免下载完整大包直接提取关键分区镜像提供了重要支持。
+- **[Google Play Supported Devices](https://support.google.com/googleplay/answer/1727131)**  
+  提供 1,185 款 OPPO、一加、realme 官方公开设备名称、型号与代号的基础公开数据源。
+- **ColorOS 官方升级助手逆向成果及社区玩机先驱**  
+  官方降级协议通道、`DataSharedProvider` 本地安装标记注入机制以及伴生 APK 的通信协议逆向分析支持。
+- **[Android Open Source Project (AOSP)](https://source.android.com/) & Platform Tools**  
+  提供稳定的 ADB 底层通信与推送工具。
+
+## 许可证与说明
+
 完整研究与适配说明见 [docs/项目研究与实现.md](docs/项目研究与实现.md)，测试记录见 [docs/验证报告.md](docs/验证报告.md)。上游许可、修改说明和源码位置见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。项目按 GPL-3.0-only 提供。

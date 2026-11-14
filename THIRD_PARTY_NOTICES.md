@@ -10,6 +10,7 @@ This application is provided under GPL-3.0-only. Its complete editable source an
 * **Python**, Python Software Foundation and contributors, PSF license. https://www.python.org/ . License reproduced from the local Python runtime when building.
 * **requests**, Kenneth Reitz and contributors, Apache-2.0; **cryptography**, Python Cryptographic Authority and contributors, Apache-2.0 or BSD; their dependencies retain their respective licenses. Package license texts accompany the distribution.
 * **PyInstaller**, PyInstaller development team, GPL-2.0-or-later with the bootloader exception. https://pyinstaller.org/ . No restriction on distributing generated applications is imposed by the bootloader exception. License texts are collected from the installed package when building.
+* **ColorOS Upgrade Assistant / OTA Downgrade Components**, OPPO Guangdong Mobile Telecommunications Co., Ltd. The bundled companion APKs (`tools/apk/OTA_17.apk` and `tools/apk/OTA_113.apk`) are official upgrade assistant packages for local install dispatch. Research and reverse engineering analysis of the downgrade trigger flow, `DataSharedProvider` URI injection, and `forbid_check_update` parameters are documented in `docs/项目研究与实现.md`.
 
 Artifact versions and recorded SHA256 values are in `tools/versions.json`. No vendor private keys, device keyboxes, firmware packages or credentials are bundled.
 
