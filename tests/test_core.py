@@ -139,5 +139,38 @@ class CoreTests(unittest.TestCase):
                 engine.extract(info,['boot','init_boot'],out,'',self.cancel,progress,progress,'xishang')
                 self.assertEqual((out/'boot.img').read_bytes(),images['boot']);self.assertEqual((out/'init_boot.img').read_bytes(),images['init_boot'])
                 if remote:self.assertLess(stats['sent'],archive.stat().st_size)
+    def test_opex_patch_package_parsing(self):
+        from vendor.oplus_tracker.tomboy_pro import QueryResult, QueryConfig
+        cfg = QueryConfig('PYB110_11.A', 'PYB110', 'cn', 'manual', '0'*64)
+        opts = tracker.QueryOptions('PYB110', 'cn', 'PYB110_11.A')
+        raw_body = {
+            'status': 'published',
+            'isRecruit': False,
+            'versionName': 'PYB110_17.0.1.201(CN01)',
+            'realOsVersion': 'ColorOS 17.0.0',
+            'opex': {
+                'opexVersionName': '17.0.1.201Patch01',
+                'content': '• 优化部分场景的系统稳定性',
+                'opexPackage': [{
+                    'businessCode': 'ovl_update_6137',
+                    'info': {
+                        'zipSize': 1230309,
+                        'zipHash': 'e7efa948f57dd039c09aa22682af228d32307ebd225693b24300aa63942c4a06',
+                        'autoUrl': 'https://gauss-opexcostauto-cn.allawnfs.com/patch.zip'
+                    }
+                }]
+            }
+        }
+        res = QueryResult(success=True, response_code=200, data={'version':'PYB110_17.0.1.201(CN01)', 'ota_version':'PYB110_11.A.44', 'raw_body': raw_body}, components=[])
+        packages = tracker.normalize_result(res, cfg, '正式版', opts)
+        self.assertEqual(len(packages), 1)
+        p = packages[0]
+        self.assertEqual(p.kind, '补丁包')
+        self.assertEqual(p.version, '17.0.1.201Patch01')
+        self.assertEqual(p.component, 'ovl_update_6137')
+        self.assertEqual(p.size, 1230309)
+        self.assertEqual(p.sha256, 'e7efa948f57dd039c09aa22682af228d32307ebd225693b24300aa63942c4a06')
+        self.assertEqual(p.url, 'https://gauss-opexcostauto-cn.allawnfs.com/patch.zip')
+        self.assertIn('ovl_update_6137', p.evidence)
 
 if __name__=='__main__':unittest.main(verbosity=2)

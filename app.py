@@ -197,7 +197,7 @@ class Window(QMainWindow):
         page=QWidget();lay=QVBoxLayout(page);lay.setContentsMargins(0,5,0,0)
         self.channel_filter=QComboBox();self.major_filter=QComboBox();self.kind_filter=QComboBox()
         self.channel_filter.addItems(['全部类型']+tracker.CHANNELS);self.major_filter.addItem('全部 ColorOS')
-        self.kind_filter.addItems(['全部包','全量包','增量包','待核验'])
+        self.kind_filter.addItems(['全部包','全量包','增量包','补丁包','待核验'])
         self.search=QLineEdit();self.search.setPlaceholderText('搜索版本 / OTA 代码 / 组件 / 基线版本…');self.search.setClearButtonEnabled(True)
         refresh=button('刷新固件列表',self.query_firmware,True);export=button('导出查询记录',self.export_catalog)
         self.busy_buttons.extend([refresh,export])
@@ -510,6 +510,9 @@ class Window(QMainWindow):
         if not self.selected_package:
             self.toast('请先在上方列表中选择一个固件包。');return
         p=self.selected_package
+        if p.kind == '补丁包':
+            QMessageBox.warning(self, '无法作为系统固件推送', '该项为 OPEX 模块补丁包，非整机系统固件，不能通过官方整机降级通道进行推送。\n\n请直接点击【下载完整固件】或【复制链接】下载使用。')
+            return
         name=safe_name(p.ota+'_'+p.component+'_'+p.kind)+'.zip'
         expected=Path(self.settings.get('download_dir',str(HOME/'downloads')))/name
         if expected.is_file():
@@ -560,7 +563,7 @@ class Window(QMainWindow):
     def filter_online(self):
         old=self.online_combo.currentData();self.online_combo.blockSignals(True);self.online_combo.clear()
         self.online_combo.addItem('选择在线固件，或在下面粘贴下载链接','')
-        self.online_packages=self.filtered(self.online_channel.currentText(),self.online_major.currentText(),'全部包',self.online_search.text())
+        self.online_packages=[p for p in self.filtered(self.online_channel.currentText(),self.online_major.currentText(),'全部包',self.online_search.text()) if p.kind != '补丁包']
         for p in self.online_packages:self.online_combo.addItem(f'{p.version} · {p.kind} · {p.component} · {size_text(p.size)} · {p.published or "日期未知"}',p.id)
         self.online_combo.setCurrentIndex(max(0,self.online_combo.findData(old)));self.online_combo.blockSignals(False)
     def select_online(self,index):
@@ -570,7 +573,11 @@ class Window(QMainWindow):
             self.extract_hint.setText(p.channel+' · '+p.kind+' · 安装基线：'+(p.base_version or '无 / 待读取核验'))
     def use_online_package(self):
         if not self.selected_package:return
-        p=self.selected_package;self.source_mode.setCurrentIndex(1)
+        p=self.selected_package
+        if p.kind == '补丁包':
+            QMessageBox.information(self, '补丁包提示', '该项目为官方 OPEX 模块/热修复补丁包，内部不含 payload.bin 底层镜像，无需进行镜像提取。\n\n请直接点击【下载完整固件】或【复制链接】下载使用。')
+            return
+        self.source_mode.setCurrentIndex(1)
         self.online_channel.setCurrentIndex(0);self.online_major.setCurrentIndex(0);self.online_search.clear();self.filter_online()
         self.online_combo.setCurrentIndex(max(0,self.online_combo.findData(p.id)))
         self.source_edit.setText(p.url);self.tabs.setCurrentIndex(2)

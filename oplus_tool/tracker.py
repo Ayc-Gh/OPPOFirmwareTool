@@ -118,6 +118,9 @@ def normalize_result(result, cfg, channel, options):
         channel,release_evidence='正式版','服务器 published，isRecruit=false'
     else:
         channel,release_evidence='通道待确认',f'请求 {requested_channel}/{cfg.mode}；服务器未提供明确发布性质'
+    published_ts=integer(raw.get('publishedTime'))
+    pub = datetime.fromtimestamp(published_ts/1000,timezone(timedelta(hours=8))).strftime('%Y-%m-%d %H:%M:%S') if published_ts else date_from_version(str(data.get('ota_version') or ''))
+    date_source = '服务器发布时间（UTC+8）' if published_ts else '固件构建时间（非推送日期）' if pub else '服务器未提供'
     records = []
     raw_comps = {c.get('componentName'):c for c in raw.get('components',[]) if isinstance(c,dict)}
     for comp in result.components or []:
@@ -142,9 +145,8 @@ def normalize_result(result, cfg, channel, options):
             base = cfg.ota_version
         else:
             kind, evidence = '全量包', '无组件基线的全量查询；解包时再次核验 payload'
-        published_ts=integer(raw.get('publishedTime'))
-        pub = datetime.fromtimestamp(published_ts/1000,timezone(timedelta(hours=8))).strftime('%Y-%m-%d %H:%M:%S') if published_ts else date_from_version(ota)
-        date_source = '服务器发布时间（UTC+8）' if published_ts else '固件构建时间（非推送日期）' if pub else '服务器未提供'
+        comp_pub = pub or date_from_version(ota)
+        comp_date_source = date_source if pub else ('固件构建时间（非推送日期）' if comp_pub else '服务器未提供')
         url = comp.link if comp.link and comp.link != 'N/A' else comp.auto_url
         if not url or not url.startswith(('http://','https://')):
             continue
@@ -152,11 +154,64 @@ def normalize_result(result, cfg, channel, options):
         recipe.pop('guid',None)
         records.append(Package(options.model,options.region,channel,kind,version,ota,comp.name,url,
                                comp.original_link if comp.original_link != 'N/A' else url,
-                               integer(comp.size),pub,date_source,major_from_version(raw.get('realOsVersion') or raw.get('colorOSVersion') or version),base,
+                               integer(comp.size),comp_pub,comp_date_source,major_from_version(raw.get('realOsVersion') or raw.get('colorOSVersion') or version),base,
                                comp.md5 if re.fullmatch(r'[a-fA-F0-9]{32}', comp.md5 or '') else '',
                                str(packet.get('sha256','')) if re.fullmatch(r'[a-fA-F0-9]{64}',str(packet.get('sha256',''))) else '',
                                recipe=recipe,evidence=evidence,release_evidence=release_evidence,
                                public_query=not cfg.guid or cfg.guid=='0'*64))
+
+    # OPEX 模块与热修复补丁包解析
+    opex_data = raw.get('opex') if isinstance(raw.get('opex'), dict) else {}
+    opex_version = opex_data.get('opexVersionName')
+    opex_content = opex_data.get('content', '')
+    opex_packages = opex_data.get('opexPackage', [])
+    if isinstance(opex_packages, list) and opex_packages:
+        for pkg in opex_packages:
+            if not isinstance(pkg, dict): continue
+            code = pkg.get('businessCode') or 'opex'
+            info = pkg.get('info') if isinstance(pkg.get('info'), dict) else {}
+            url = info.get('manualUrl') or info.get('autoUrl') or pkg.get('url') or pkg.get('autoUrl')
+            if not url or not url.startswith(('http://','https://')): continue
+            orig_url = pkg.get('originalUrl') or url
+            size = integer(info.get('zipSize') or info.get('imgSize') or pkg.get('size'))
+            md5_val = str(info.get('md5') or pkg.get('md5') or '')
+            sha256_val = str(info.get('zipHash') or info.get('imgHash') or pkg.get('zipHash') or '')
+            patch_ver = opex_version or (f"{data.get('version')} {code}" if data.get('version') else code)
+            base_ver = data.get('version') or cfg.ota_version
+            evidence_desc = f'OPEX 模块补丁 ({code})' + (f' · {opex_content}' if opex_content else '')
+            recipe = asdict(cfg); recipe.pop('guid', None)
+            records.append(Package(
+                options.model, options.region, channel, '补丁包',
+                patch_ver, data.get('ota_version') or cfg.ota_version, code, url,
+                orig_url, size, pub, date_source,
+                major_from_version(raw.get('realOsVersion') or raw.get('colorOSVersion') or patch_ver),
+                f'适用底包: {base_ver}' if base_ver else '',
+                md5_val if re.fullmatch(r'[a-fA-F0-9]{32}', md5_val) else '',
+                sha256_val if re.fullmatch(r'[a-fA-F0-9]{64}', sha256_val) else '',
+                recipe=recipe, evidence=evidence_desc, release_evidence=release_evidence,
+                public_query=not cfg.guid or cfg.guid=='0'*64
+            ))
+    elif result.opex_list:
+        for opex in result.opex_list:
+            url = getattr(opex, 'auto_url', None) or getattr(opex, 'link', None)
+            if not url or not url.startswith(('http://','https://')): continue
+            code = getattr(opex, 'business_code', 'opex')
+            patch_ver = getattr(opex, 'version_name', '') or (f"{data.get('version')} {code}" if data.get('version') else code)
+            sha256_val = getattr(opex, 'zip_hash', '') or ''
+            md5_val = getattr(opex, 'md5', '') or ''
+            orig_url = getattr(opex, 'original_link', url) or url
+            recipe = asdict(cfg); recipe.pop('guid', None)
+            records.append(Package(
+                options.model, options.region, channel, '补丁包',
+                patch_ver, data.get('ota_version') or cfg.ota_version, code, url,
+                orig_url, integer(getattr(opex, 'size', 0)), pub, date_source,
+                major_from_version(raw.get('realOsVersion') or raw.get('colorOSVersion') or patch_ver),
+                f'适用底包: {data.get("version") or cfg.ota_version}',
+                md5_val if re.fullmatch(r'[a-fA-F0-9]{32}', md5_val) else '',
+                sha256_val if re.fullmatch(r'[a-fA-F0-9]{64}', sha256_val) else '',
+                recipe=recipe, evidence=f'OPEX 模块补丁 ({code})', release_evidence=release_evidence,
+                public_query=not cfg.guid or cfg.guid=='0'*64
+            ))
     return records
 
 def query_all(options, cancel, progress, log, emit, cached=(), baselines=()):
