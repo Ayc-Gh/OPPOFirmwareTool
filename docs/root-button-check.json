@@ -1,0 +1,24 @@
+{
+  "ok": true,
+  "version": "1.0.1",
+  "device": "PHY110",
+  "default_root_calls": 0,
+  "manual_root_calls": 3,
+  "guid_length": 64,
+  "duid_length": 64,
+  "identifiers_in_log": false,
+  "status_geometry": [
+    {
+      "window_width": 1060,
+      "status_width": 750,
+      "status_height": 38,
+      "required_height": 38
+    },
+    {
+      "window_width": 1380,
+      "status_width": 1070,
+      "status_height": 38,
+      "required_height": 38
+    }
+  ]
+}

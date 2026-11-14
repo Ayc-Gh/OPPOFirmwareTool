@@ -1,0 +1,523 @@
+{
+  "requests": [
+    {
+      "label": "current exact delta",
+      "ota": "PHY110_11.H.10_3100_202610291237",
+      "component_count": 10,
+      "mode": "manual",
+      "success": false,
+      "response_code": 2004,
+      "error": "[traceId=9f1df46499e3bd0ec9c6052313b02125] artifactV1Result is empty",
+      "target_version": null,
+      "real_target": null,
+      "api_target": null,
+      "components": [],
+      "seconds": 0.2
+    },
+    {
+      "label": "current exact delta",
+      "ota": "PHY110_11.H.10_3100_202610291237",
+      "component_count": 10,
+      "mode": "client_auto",
+      "success": false,
+      "response_code": 2004,
+      "error": "[traceId=0babd66d0e06fc8e532bd67ef30d33b5] artifactV1Result is empty",
+      "target_version": null,
+      "real_target": null,
+      "api_target": null,
+      "components": [],
+      "seconds": 0.11
+    },
+    {
+      "label": "current exact delta",
+      "ota": "PHY110_11.H.10_3100_202610291237",
+      "component_count": 10,
+      "mode": "server_auto",
+      "success": false,
+      "response_code": 2004,
+      "error": "[traceId=b7ea9c41e39402272327f04931d1040a] artifactV1Result is empty",
+      "target_version": null,
+      "real_target": null,
+      "api_target": null,
+      "components": [],
+      "seconds": 0.08
+    },
+    {
+      "label": "current exact delta",
+      "ota": "PHY110_11.H.10_3100_202610291237",
+      "component_count": 10,
+      "mode": "taste",
+      "success": false,
+      "response_code": 2004,
+      "error": "[traceId=67a2cdeff571526235a9788d6085a9bc] artifactV1Result is empty",
+      "target_version": null,
+      "real_target": null,
+      "api_target": null,
+      "components": [],
+      "seconds": 0.09
+    },
+    {
+      "label": "current exact control full",
+      "ota": "PHY110_11.H.10_3100_202610291237",
+      "component_count": 0,
+      "mode": "manual",
+      "success": false,
+      "response_code": 2004,
+      "error": "[traceId=c6ffcea3539e9ccbd1cf2c0a8d835c05] artifactV1Result is empty",
+      "target_version": null,
+      "real_target": null,
+      "api_target": null,
+      "components": [],
+      "seconds": 0.11
+    },
+    {
+      "label": "current exact control full",
+      "ota": "PHY110_11.H.10_3100_202610291237",
+      "component_count": 0,
+      "mode": "taste",
+      "success": false,
+      "response_code": 2004,
+      "error": "[traceId=af1b7e91a31bcf12310f416d21cf7474] artifactV1Result is empty",
+      "target_version": null,
+      "real_target": null,
+      "api_target": null,
+      "components": [],
+      "seconds": 0.08
+    },
+    {
+      "label": "previous branch control full",
+      "ota": "PHY110_11.F.28_2280_202608111929",
+      "component_count": 0,
+      "mode": "taste",
+      "success": true,
+      "response_code": 200,
+      "error": null,
+      "target_version": "PHY110_17.0.0.100(CN01)",
+      "real_target": "PHY110_11.H.10_3100_202610291237",
+      "api_target": "PHY110_11.F.10_3100_202610291237",
+      "components": [
+        {
+          "component": "my_manifest",
+          "version": "PHY110_11.H.10_3100_202610291237.97.8fee718b",
+          "packet_shape": "dict",
+          "packet_keys": [
+            "size",
+            "vabInfo",
+            "manualUrl",
+            "id",
+            "type",
+            "url",
+            "md5"
+          ],
+          "fields": {
+            "size": "9284634542",
+            "id": "domestic_my_manifest_PHY110_11.H.10_3100_202610291237.97.8fee718b_1_3476e063bb101f37dcb369bf0fed6360",
+            "type": "1",
+            "md5": "3476e063bb101f37dcb369bf0fed6360"
+          },
+          "manualUrl_path": "/downloadCheck",
+          "manualUrl_host": "component-ota-cn.allawntech.com",
+          "url_path": "/downloadCheck",
+          "url_host": "component-ota-cn.allawntech.com"
+        }
+      ],
+      "seconds": 0.17
+    },
+    {
+      "label": "current alias delta",
+      "ota": "PHY110_11.F.10_3100_202610291237",
+      "component_count": 10,
+      "mode": "manual",
+      "success": false,
+      "response_code": 2004,
+      "error": "[traceId=d85ee7e61d491b568f3c220b123667de] artifactV1Result is empty",
+      "target_version": null,
+      "real_target": null,
+      "api_target": null,
+      "components": [],
+      "seconds": 0.09
+    },
+    {
+      "label": "current alias delta",
+      "ota": "PHY110_11.F.10_3100_202610291237",
+      "component_count": 10,
+      "mode": "taste",
+      "success": false,
+      "response_code": 2004,
+      "error": "[traceId=b5cd5c8e86a06523a5d4e98e9f8dc514] artifactV1Result is empty",
+      "target_version": null,
+      "real_target": null,
+      "api_target": null,
+      "components": [],
+      "seconds": 0.08
+    },
+    {
+      "label": "ColorOS 14 older baseline full",
+      "ota": "PHY110_11.A.01_0001_197001010000",
+      "component_count": 0,
+      "mode": "taste",
+      "success": true,
+      "response_code": 200,
+      "error": null,
+      "target_version": "PHY110_14.0.1.302(CN01)",
+      "real_target": "PHY110_11.A.53_0530_202402020323",
+      "api_target": "PHY110_11.A.53_0530_202402020323",
+      "components": [
+        {
+          "component": "my_manifest",
+          "version": "PHY110_11.A.53_0530_202402020323.97.062df85f",
+          "packet_shape": "dict",
+          "packet_keys": [
+            "size",
+            "vabInfo",
+            "manualUrl",
+            "id",
+            "type",
+            "url",
+            "md5"
+          ],
+          "fields": {
+            "size": "8132893062",
+            "id": "domestic_my_manifest_PHY110_11.A.53_0530_202402020323.97.062df85f_1_a30adc0421af1956c8be1d842eee5158",
+            "type": "1",
+            "md5": "a30adc0421af1956c8be1d842eee5158"
+          },
+          "manualUrl_path": "/remove-61c0682705db9e08197afb4b5bb74f6a/component-ota/24/02/02/f62fdc3ede03446ab96e01d2705abed4.zip",
+          "manualUrl_host": "gauss-componentotacostmanual-cn.allawnfs.com",
+          "url_path": "/remove-61c0682705db9e08197afb4b5bb74f6a/component-ota/24/02/02/f62fdc3ede03446ab96e01d2705abed4.zip",
+          "url_host": "gauss-compotacostauto-cn.allawnfs.com"
+        }
+      ],
+      "seconds": 0.15
+    },
+    {
+      "label": "ColorOS 16 baseline full",
+      "ota": "PHY110_11.F.01_0001_197001010000",
+      "component_count": 0,
+      "mode": "taste",
+      "success": true,
+      "response_code": 200,
+      "error": null,
+      "target_version": "PHY110_16.0.10.500(CN01)",
+      "real_target": "PHY110_11.F.28_2280_202608111929",
+      "api_target": "PHY110_11.F.28_2280_202608111929",
+      "components": [
+        {
+          "component": "my_manifest",
+          "version": "PHY110_11.F.28_2280_202608111929.97.317117ca",
+          "packet_shape": "dict",
+          "packet_keys": [
+            "size",
+            "vabInfo",
+            "manualUrl",
+            "id",
+            "type",
+            "url",
+            "md5"
+          ],
+          "fields": {
+            "size": "8999380534",
+            "id": "domestic_my_manifest_PHY110_11.F.28_2280_202608111929.97.317117ca_1_991421501418658ab1ba6aff31554632",
+            "type": "1",
+            "md5": "991421501418658ab1ba6aff31554632"
+          },
+          "manualUrl_path": "/downloadCheck",
+          "manualUrl_host": "component-ota-cn.allawntech.com",
+          "url_path": "/downloadCheck",
+          "url_host": "component-ota-cn.allawntech.com"
+        }
+      ],
+      "seconds": 0.18
+    },
+    {
+      "label": "ColorOS 14 older baseline full",
+      "ota": "PHY110_11.A.01_0001_197001010000",
+      "component_count": 0,
+      "mode": "taste",
+      "success": true,
+      "response_code": 200,
+      "error": null,
+      "target_version": "PHY110_14.0.1.302(CN01)",
+      "real_target": "PHY110_11.A.53_0530_202402020323",
+      "api_target": "PHY110_11.A.53_0530_202402020323",
+      "components": [
+        {
+          "component": "my_manifest",
+          "version": "PHY110_11.A.53_0530_202402020323.97.062df85f",
+          "packet_shape": "dict",
+          "packet_keys": [
+            "size",
+            "vabInfo",
+            "manualUrl",
+            "id",
+            "type",
+            "url",
+            "md5"
+          ],
+          "fields": {
+            "size": "8132893062",
+            "id": "domestic_my_manifest_PHY110_11.A.53_0530_202402020323.97.062df85f_1_a30adc0421af1956c8be1d842eee5158",
+            "type": "1",
+            "md5": "a30adc0421af1956c8be1d842eee5158"
+          },
+          "manualUrl_path": "/remove-61c0682705db9e08197afb4b5bb74f6a/component-ota/24/02/02/f62fdc3ede03446ab96e01d2705abed4.zip",
+          "manualUrl_host": "gauss-componentotacostmanual-cn.allawnfs.com",
+          "url_path": "/remove-61c0682705db9e08197afb4b5bb74f6a/component-ota/24/02/02/f62fdc3ede03446ab96e01d2705abed4.zip",
+          "url_host": "gauss-compotacostauto-cn.allawnfs.com"
+        }
+      ],
+      "seconds": 0.16
+    },
+    {
+      "label": "ColorOS 14 older baseline matching components",
+      "ota": "PHY110_11.A.53_0530_202402020323",
+      "component_count": 10,
+      "mode": "manual",
+      "success": true,
+      "response_code": 200,
+      "error": null,
+      "target_version": "PHY110_14.0.1.790(CN01)",
+      "real_target": "PHY110_11.A.92_0920_202410092006",
+      "api_target": "PHY110_11.A.92_0920_202410092006",
+      "components": [
+        {
+          "component": "my_manifest",
+          "version": "PHY110_11.A.92_0920_202410092006.97.f8758207",
+          "packet_shape": "dict",
+          "packet_keys": [
+            "size",
+            "vabInfo",
+            "manualUrl",
+            "id",
+            "type",
+            "url",
+            "md5"
+          ],
+          "fields": {
+            "size": "8096435232",
+            "id": "domestic_my_manifest_PHY110_11.A.92_0920_202410092006.97.f8758207_1_5624336bc2f411d7a18d3ff2c5a38a9c",
+            "type": "1",
+            "md5": "5624336bc2f411d7a18d3ff2c5a38a9c"
+          },
+          "manualUrl_path": "/remove-9cab184482ba68af3d12c13ce91abcc8/component-ota/24/10/10/cbf566ed5dfc4c61982f96c04ac5aa92.zip",
+          "manualUrl_host": "gauss-componentotacostmanual-cn.allawnfs.com",
+          "url_path": "/remove-9cab184482ba68af3d12c13ce91abcc8/component-ota/24/10/10/cbf566ed5dfc4c61982f96c04ac5aa92.zip",
+          "url_host": "gauss-compotacostauto-cn.allawnfs.com"
+        }
+      ],
+      "seconds": 0.1
+    },
+    {
+      "label": "ColorOS 14 older baseline matching components",
+      "ota": "PHY110_11.A.53_0530_202402020323",
+      "component_count": 10,
+      "mode": "client_auto",
+      "success": true,
+      "response_code": 200,
+      "error": null,
+      "target_version": "PHY110_14.0.1.790(CN01)",
+      "real_target": "PHY110_11.A.92_0920_202410092006",
+      "api_target": "PHY110_11.A.92_0920_202410092006",
+      "components": [
+        {
+          "component": "my_manifest",
+          "version": "PHY110_11.A.92_0920_202410092006.97.f8758207",
+          "packet_shape": "dict",
+          "packet_keys": [
+            "size",
+            "vabInfo",
+            "manualUrl",
+            "id",
+            "type",
+            "url",
+            "md5"
+          ],
+          "fields": {
+            "size": "8096435232",
+            "id": "domestic_my_manifest_PHY110_11.A.92_0920_202410092006.97.f8758207_1_5624336bc2f411d7a18d3ff2c5a38a9c",
+            "type": "1",
+            "md5": "5624336bc2f411d7a18d3ff2c5a38a9c"
+          },
+          "manualUrl_path": "/remove-9cab184482ba68af3d12c13ce91abcc8/component-ota/24/10/10/cbf566ed5dfc4c61982f96c04ac5aa92.zip",
+          "manualUrl_host": "gauss-componentotacostmanual-cn.allawnfs.com",
+          "url_path": "/remove-9cab184482ba68af3d12c13ce91abcc8/component-ota/24/10/10/cbf566ed5dfc4c61982f96c04ac5aa92.zip",
+          "url_host": "gauss-compotacostauto-cn.allawnfs.com"
+        }
+      ],
+      "seconds": 0.11
+    },
+    {
+      "label": "ColorOS 14 older baseline matching components",
+      "ota": "PHY110_11.A.53_0530_202402020323",
+      "component_count": 10,
+      "mode": "server_auto",
+      "success": true,
+      "response_code": 200,
+      "error": null,
+      "target_version": "PHY110_14.0.1.790(CN01)",
+      "real_target": "PHY110_11.A.92_0920_202410092006",
+      "api_target": "PHY110_11.A.92_0920_202410092006",
+      "components": [
+        {
+          "component": "my_manifest",
+          "version": "PHY110_11.A.92_0920_202410092006.97.f8758207",
+          "packet_shape": "dict",
+          "packet_keys": [
+            "size",
+            "vabInfo",
+            "manualUrl",
+            "id",
+            "type",
+            "url",
+            "md5"
+          ],
+          "fields": {
+            "size": "8096435232",
+            "id": "domestic_my_manifest_PHY110_11.A.92_0920_202410092006.97.f8758207_1_5624336bc2f411d7a18d3ff2c5a38a9c",
+            "type": "1",
+            "md5": "5624336bc2f411d7a18d3ff2c5a38a9c"
+          },
+          "manualUrl_path": "/remove-9cab184482ba68af3d12c13ce91abcc8/component-ota/24/10/10/cbf566ed5dfc4c61982f96c04ac5aa92.zip",
+          "manualUrl_host": "gauss-componentotacostmanual-cn.allawnfs.com",
+          "url_path": "/remove-9cab184482ba68af3d12c13ce91abcc8/component-ota/24/10/10/cbf566ed5dfc4c61982f96c04ac5aa92.zip",
+          "url_host": "gauss-compotacostauto-cn.allawnfs.com"
+        }
+      ],
+      "seconds": 0.08
+    },
+    {
+      "label": "ColorOS 14 older baseline matching components",
+      "ota": "PHY110_11.A.53_0530_202402020323",
+      "component_count": 10,
+      "mode": "taste",
+      "success": false,
+      "response_code": 2004,
+      "error": "[traceId=b153cc6e5facf348cb86bfe930f82d3d] artifactV1Result is empty",
+      "target_version": null,
+      "real_target": null,
+      "api_target": null,
+      "components": [],
+      "seconds": 0.09
+    },
+    {
+      "label": "ColorOS 16 baseline full",
+      "ota": "PHY110_11.F.01_0001_197001010000",
+      "component_count": 0,
+      "mode": "taste",
+      "success": true,
+      "response_code": 200,
+      "error": null,
+      "target_version": "PHY110_16.0.10.500(CN01)",
+      "real_target": "PHY110_11.F.28_2280_202608111929",
+      "api_target": "PHY110_11.F.28_2280_202608111929",
+      "components": [
+        {
+          "component": "my_manifest",
+          "version": "PHY110_11.F.28_2280_202608111929.97.317117ca",
+          "packet_shape": "dict",
+          "packet_keys": [
+            "size",
+            "vabInfo",
+            "manualUrl",
+            "id",
+            "type",
+            "url",
+            "md5"
+          ],
+          "fields": {
+            "size": "8999380534",
+            "id": "domestic_my_manifest_PHY110_11.F.28_2280_202608111929.97.317117ca_1_991421501418658ab1ba6aff31554632",
+            "type": "1",
+            "md5": "991421501418658ab1ba6aff31554632"
+          },
+          "manualUrl_path": "/downloadCheck",
+          "manualUrl_host": "component-ota-cn.allawntech.com",
+          "url_path": "/downloadCheck",
+          "url_host": "component-ota-cn.allawntech.com"
+        }
+      ],
+      "seconds": 0.16
+    },
+    {
+      "label": "ColorOS 16 baseline matching components",
+      "ota": "PHY110_11.F.28_2280_202608111929",
+      "component_count": 10,
+      "mode": "manual",
+      "success": false,
+      "response_code": 2004,
+      "error": "[traceId=b826c19143c3b64e7ab2772cc4a65cb6] artifactV1Result is empty",
+      "target_version": null,
+      "real_target": null,
+      "api_target": null,
+      "components": [],
+      "seconds": 0.08
+    },
+    {
+      "label": "ColorOS 16 baseline matching components",
+      "ota": "PHY110_11.F.28_2280_202608111929",
+      "component_count": 10,
+      "mode": "client_auto",
+      "success": false,
+      "response_code": 2004,
+      "error": "[traceId=e2d6b4b0e868e47bb76f7e96da58e961] artifactV1Result is empty",
+      "target_version": null,
+      "real_target": null,
+      "api_target": null,
+      "components": [],
+      "seconds": 0.09
+    },
+    {
+      "label": "ColorOS 16 baseline matching components",
+      "ota": "PHY110_11.F.28_2280_202608111929",
+      "component_count": 10,
+      "mode": "server_auto",
+      "success": false,
+      "response_code": 2004,
+      "error": "[traceId=48e13a8a28196bbf584f3a7175ff9d5b] artifactV1Result is empty",
+      "target_version": null,
+      "real_target": null,
+      "api_target": null,
+      "components": [],
+      "seconds": 0.09
+    },
+    {
+      "label": "ColorOS 16 baseline matching components",
+      "ota": "PHY110_11.F.28_2280_202608111929",
+      "component_count": 10,
+      "mode": "taste",
+      "success": true,
+      "response_code": 200,
+      "error": null,
+      "target_version": "PHY110_17.0.0.100(CN01)",
+      "real_target": "PHY110_11.H.10_3100_202610291237",
+      "api_target": "PHY110_11.F.10_3100_202610291237",
+      "components": [
+        {
+          "component": "my_manifest",
+          "version": "PHY110_11.H.10_3100_202610291237.97.8fee718b",
+          "packet_shape": "dict",
+          "packet_keys": [
+            "size",
+            "vabInfo",
+            "manualUrl",
+            "id",
+            "type",
+            "url",
+            "md5"
+          ],
+          "fields": {
+            "size": "3851752657",
+            "id": "domestic_my_manifest_PHY110_11.H.10_3100_202610291237.97.8fee718b_0_ac4773107bc2ce72b942c20c54e2d682",
+            "type": "0",
+            "md5": "ac4773107bc2ce72b942c20c54e2d682"
+          },
+          "manualUrl_path": "/downloadCheck",
+          "manualUrl_host": "component-ota-cn.allawntech.com",
+          "url_path": "/downloadCheck",
+          "url_host": "component-ota-cn.allawntech.com"
+        }
+      ],
+      "seconds": 0.21
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "ssut": {
+    "url": "https://github.com/ssut/payload-dumper-go/releases/download/2.1.0/payload-dumper-go_2.1.0_windows_amd64.tar.gz",
+    "archive_sha256": "45483c54bdd9219b8dcdb757256e7ce7a2bf9552d0e43f32e03389a1f0c55b15",
+    "binary_sha256": "da8b387b0685cbbcd72979bcd17162edcdcde26508cf0025e86ee632cf6b1870",
+    "verification": "upstream checksums"
+  },
+  "xishang": {
+    "url": "https://github.com/xishang0128/payload-dumper-go/releases/download/v0.1.6/payload-dumper-windows-amd64-v3.zip",
+    "archive_sha256": "14277c0ad855827e1058f36622b5ea0fdc6e44fcfd542f3293b80eff59e8465e",
+    "binary_sha256": "e06265f3d20a40bfe3710684741e441e5200dd077558fef147447865b8ec501c",
+    "verification": "HTTPS GitHub release; locally recorded hash"
+  }
+}

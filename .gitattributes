@@ -1,0 +1,15 @@
+* text=auto
+*.py text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.txt text eol=lf
+*.bat text eol=crlf
+*.exe binary
+*.dll binary
+*.zip binary
+*.png binary
+vendor/** linguist-vendored
+licenses/** linguist-vendored
+tools/** linguist-vendored
+upstream-source/** linguist-vendored
+docs/** linguist-documentation

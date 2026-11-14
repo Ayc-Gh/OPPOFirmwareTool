@@ -1,0 +1,26 @@
+{
+  "ok": true,
+  "version": "1.0.2",
+  "bundled_baseline_profiles": 2,
+  "root_policy": "manual-button-only",
+  "root_button": "尝试 root 获取 GUID 和 DUID",
+  "crypto": "AES-CTR and RSA-OAEP verified",
+  "tabs": [
+    "01  设备与参数",
+    "02  固件获取",
+    "03  镜像解包"
+  ],
+  "engines": {
+    "ssut": "c148da9a3a822081db2c708f3991f53b964866b547eca69779a480cb07afd7f1",
+    "xishang": "c148da9a3a822081db2c708f3991f53b964866b547eca69779a480cb07afd7f1"
+  },
+  "devices": [
+    {
+      "name": "OPPO Find X7 Ultra",
+      "model": "PHY110",
+      "slot": "a",
+      "region": "cn"
+    }
+  ],
+  "adb_notes": []
+}

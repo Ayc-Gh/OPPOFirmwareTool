@@ -1,0 +1,359 @@
+{
+  "base_version": "PHY110_16.0.10.500(CN01)",
+  "base_ota": "PHY110_11.F.28_2280_202608111929",
+  "target_version": "PHY110_17.0.0.100(CN01)",
+  "target_ota": "PHY110_11.H.10_3100_202610291237",
+  "package_size": 3851752657,
+  "package_md5": "ac4773107bc2ce72b942c20c54e2d682",
+  "kind": "增量包",
+  "base_metadata": {
+    "pre-build": "OPPO/PHY110/OP565FL1:16/UKQ1.231108.001/U.46095f9-20df54a-21294a2:user/release-keys",
+    "pre-build-incremental": "U.46095f9-20df54a-21294a2",
+    "pre-device": "OP565FL1"
+  },
+  "partition_count": 48,
+  "partitions_requiring_source": 44,
+  "partitions": [
+    {
+      "name": "system",
+      "size": 1059119104,
+      "needs_source": true,
+      "operations": "REPLACE, REPLACE_BZ, SOURCE_COPY, ZERO, REPLACE_XZ, BROTLI_BSDIFF",
+      "hash": "1aff15f4fd37307ed4ff52a3b93a482ae4894c996ff78cedd9c8d2e25e509e40"
+    },
+    {
+      "name": "system_ext",
+      "size": 978309120,
+      "needs_source": true,
+      "operations": "REPLACE, REPLACE_BZ, SOURCE_COPY, ZERO, REPLACE_XZ, BROTLI_BSDIFF",
+      "hash": "734310d57f7f87382e063dac74e33b97159f3f32b22bfe30042f1f9daddb942d"
+    },
+    {
+      "name": "product",
+      "size": 160296960,
+      "needs_source": true,
+      "operations": "SOURCE_COPY, ZERO, REPLACE_XZ, BROTLI_BSDIFF",
+      "hash": "05e8b59caec7947d90404b1611a65978494b234ffd0a789c2c3808235a864a39"
+    },
+    {
+      "name": "vbmeta_system",
+      "size": 4096,
+      "needs_source": true,
+      "operations": "BROTLI_BSDIFF",
+      "hash": "72990bdb8924433c86f112bf8a7945543d3884e824e76df015ed39341d059413"
+    },
+    {
+      "name": "boot",
+      "size": 201326592,
+      "needs_source": true,
+      "operations": "SOURCE_COPY, ZERO, BROTLI_BSDIFF",
+      "hash": "58419f7e613dd8ac69d2f1b55c156de20bbc2f168268e64fbf71cbb4834a10aa"
+    },
+    {
+      "name": "init_boot",
+      "size": 8388608,
+      "needs_source": true,
+      "operations": "ZERO, REPLACE_XZ, BROTLI_BSDIFF",
+      "hash": "40d8fde217cd5d52509c8762c70cadb0fd4c7fc73d1d726f2f478639cd880a46"
+    },
+    {
+      "name": "vendor_boot",
+      "size": 201326592,
+      "needs_source": true,
+      "operations": "SOURCE_COPY, ZERO, BROTLI_BSDIFF",
+      "hash": "728654e0634d8524ca130e2863bcdb350badac984cf1211bd93e76ecdc39e1ef"
+    },
+    {
+      "name": "recovery",
+      "size": 104857600,
+      "needs_source": true,
+      "operations": "SOURCE_COPY, ZERO, BROTLI_BSDIFF",
+      "hash": "77f46c6e373a9d36f3585a34678291b09605c089d7978322932e37db1af07d1c"
+    },
+    {
+      "name": "vendor",
+      "size": 829247488,
+      "needs_source": true,
+      "operations": "REPLACE_BZ, SOURCE_COPY, ZERO, REPLACE_XZ, BROTLI_BSDIFF",
+      "hash": "d2176cea643f5dcad2383fe69e643c562bb168c15e4725b05362a172a5463210"
+    },
+    {
+      "name": "vendor_dlkm",
+      "size": 49631232,
+      "needs_source": true,
+      "operations": "SOURCE_COPY, ZERO, REPLACE_XZ, BROTLI_BSDIFF",
+      "hash": "01c3456533ec0b4d83fab6816006ce303e920de7b7ea51b503a51a2eaa9ea96f"
+    },
+    {
+      "name": "system_dlkm",
+      "size": 14553088,
+      "needs_source": true,
+      "operations": "SOURCE_COPY, ZERO, BROTLI_BSDIFF",
+      "hash": "9d83a5a78293261806637902ac46eaa98640b7ec7ffa2b0bad0d45bb0e3813ce"
+    },
+    {
+      "name": "odm",
+      "size": 2434711552,
+      "needs_source": true,
+      "operations": "REPLACE, REPLACE_BZ, SOURCE_COPY, ZERO, REPLACE_XZ, BROTLI_BSDIFF",
+      "hash": "be86f741f00a0cc98aa2609035c19162e381daf914eba13c38254731fd1287c8"
+    },
+    {
+      "name": "dtbo",
+      "size": 25165824,
+      "needs_source": true,
+      "operations": "SOURCE_COPY, ZERO, BROTLI_BSDIFF",
+      "hash": "1e77b6cac5c781220ec5741c93558d64ad6578cfc8a14d9987c3cb7363376fc5"
+    },
+    {
+      "name": "vbmeta",
+      "size": 12288,
+      "needs_source": true,
+      "operations": "BROTLI_BSDIFF",
+      "hash": "e5416188b921ff6a4da1d272d78bda7831ddcb3c4e393ced16252f061b559bc5"
+    },
+    {
+      "name": "abl",
+      "size": 278528,
+      "needs_source": true,
+      "operations": "SOURCE_COPY, BROTLI_BSDIFF",
+      "hash": "cddf2e1e6504929416c90ee4d16d583ac9b35538d234736d7ff8468fa87db04c"
+    },
+    {
+      "name": "aop",
+      "size": 335872,
+      "needs_source": true,
+      "operations": "SOURCE_COPY, ZERO, BROTLI_BSDIFF",
+      "hash": "a1271f9247256166b648d349ada55eb0fe4c88fe623aed88bfdbd4759da6dbb8"
+    },
+    {
+      "name": "aop_config",
+      "size": 28672,
+      "needs_source": true,
+      "operations": "SOURCE_COPY, BROTLI_BSDIFF",
+      "hash": "2d77159010e075ae06ed9017d43f1530a09d88b8a04904b9f151d5a9a416f9b7"
+    },
+    {
+      "name": "bluetooth",
+      "size": 1454080,
+      "needs_source": true,
+      "operations": "SOURCE_COPY, ZERO, BROTLI_BSDIFF",
+      "hash": "acfbf0c2765a2ed29e73fb180c3869f28e1681cf472632cd50dddf07eab7ab4b"
+    },
+    {
+      "name": "cpucp",
+      "size": 253952,
+      "needs_source": true,
+      "operations": "SOURCE_COPY, ZERO, BROTLI_BSDIFF",
+      "hash": "e45e2b524d7210596cff6d95441ff2371e72b180caaaa23b718b17ee20790631"
+    },
+    {
+      "name": "devcfg",
+      "size": 61440,
+      "needs_source": true,
+      "operations": "SOURCE_COPY, BROTLI_BSDIFF",
+      "hash": "d7b164c361ddd1003544d33a224d75627e441f0231f52efacf56e3a3f6a847aa"
+    },
+    {
+      "name": "dsp",
+      "size": 67108864,
+      "needs_source": true,
+      "operations": "SOURCE_COPY, ZERO",
+      "hash": "416d03a3d335b6d549cf61bdbe1ed223fd1739f1d6c16b48caddd9bfc5ee840d"
+    },
+    {
+      "name": "engineering_cdt",
+      "size": 1048576,
+      "needs_source": true,
+      "operations": "ZERO, BROTLI_BSDIFF",
+      "hash": "580c66172eab414b3a5822361e0c53dda8c171a8e6ad832c57410f6935f76743"
+    },
+    {
+      "name": "featenabler",
+      "size": 106496,
+      "needs_source": true,
+      "operations": "SOURCE_COPY, BROTLI_BSDIFF",
+      "hash": "ff1e3eb67700f9f7d65a3358b78c85f57a78ddf3b772aacc8f8e348ef4c61d3c"
+    },
+    {
+      "name": "hyp",
+      "size": 1642496,
+      "needs_source": true,
+      "operations": "SOURCE_COPY, ZERO, BROTLI_BSDIFF",
+      "hash": "7c9d7df4e2ee1e264e37399d3155c24117a57bacff54962d6fe83df4f484676a"
+    },
+    {
+      "name": "imagefv",
+      "size": 106496,
+      "needs_source": false,
+      "operations": "REPLACE_XZ",
+      "hash": "97cec78fef1d916e8fa23b961773bb0f7c51e0a0fcec74cd6e4ecf71bec00682"
+    },
+    {
+      "name": "keymaster",
+      "size": 430080,
+      "needs_source": true,
+      "operations": "SOURCE_COPY, ZERO, BROTLI_BSDIFF",
+      "hash": "8f5bf60e6f175db69a30eb99abd9d650686ff1f21fc81c22af921bd5051e519d"
+    },
+    {
+      "name": "modem",
+      "size": 317386752,
+      "needs_source": true,
+      "operations": "SOURCE_COPY, ZERO, BROTLI_BSDIFF",
+      "hash": "f2b887decd5d3c07cf25ed0ec9d4d18e553206d2624e9598b43d2e00ec2bc439"
+    },
+    {
+      "name": "oplus_sec",
+      "size": 872448,
+      "needs_source": true,
+      "operations": "REPLACE_BZ, SOURCE_COPY, ZERO",
+      "hash": "a0e38b10a38946e7b52f336a342790baea5adef513a054a0d79aec94550011a6"
+    },
+    {
+      "name": "oplusstanvbk",
+      "size": 1245184,
+      "needs_source": true,
+      "operations": "SOURCE_COPY, BROTLI_BSDIFF",
+      "hash": "f95242c24da0d11e069e4ec692eb032cd7375a686b4686be3a1b212822813f0f"
+    },
+    {
+      "name": "qupfw",
+      "size": 61440,
+      "needs_source": true,
+      "operations": "SOURCE_COPY, BROTLI_BSDIFF",
+      "hash": "602f8c2883a494ef04bc30d0f5ab76f79303e274e0d969efeb5cf89acb73b42e"
+    },
+    {
+      "name": "shrm",
+      "size": 139264,
+      "needs_source": true,
+      "operations": "SOURCE_COPY, BROTLI_BSDIFF",
+      "hash": "de7c2b577609c4b206223dc42c451fdde0c195ea55eb7a71adaa1fb758e7b8e7"
+    },
+    {
+      "name": "splash",
+      "size": 15265792,
+      "needs_source": false,
+      "operations": "REPLACE, REPLACE_BZ, REPLACE_XZ",
+      "hash": "b233d7433ae0ee92143f13c14d2cf881e7ac4fe9b938a7bec82fba6884e8b2c0"
+    },
+    {
+      "name": "tz",
+      "size": 4141056,
+      "needs_source": true,
+      "operations": "SOURCE_COPY, ZERO, BROTLI_BSDIFF",
+      "hash": "410b63e07b4db9dfdbeb4853baf29f598b73059b55738180758f45a2a38c2799"
+    },
+    {
+      "name": "uefi",
+      "size": 3158016,
+      "needs_source": true,
+      "operations": "SOURCE_COPY, ZERO, BROTLI_BSDIFF",
+      "hash": "86001dcfba084a9c6e3305242358dd73748978944d02fbbc4b645d606dd57f97"
+    },
+    {
+      "name": "uefisecapp",
+      "size": 200704,
+      "needs_source": true,
+      "operations": "SOURCE_COPY, ZERO, BROTLI_BSDIFF",
+      "hash": "0dd689aae99be252720d829139d33a216c53cb5ab153f4e0bee51641c65f0a33"
+    },
+    {
+      "name": "cpucp_dtb",
+      "size": 16384,
+      "needs_source": true,
+      "operations": "SOURCE_COPY, ZERO, BROTLI_BSDIFF",
+      "hash": "f73c4f24311ebede32bf581f118910506f9e5d42ab512742fd38498bee94ae82"
+    },
+    {
+      "name": "vbmeta_vendor",
+      "size": 4096,
+      "needs_source": true,
+      "operations": "BROTLI_BSDIFF",
+      "hash": "71b746f4c57dbd9c0eb98cd9ce4985e9fcbf4aeed322be48690beda3272d23f4"
+    },
+    {
+      "name": "xbl",
+      "size": 1118208,
+      "needs_source": false,
+      "operations": "REPLACE_XZ",
+      "hash": "6bc364a198f1d97a7b3f767d002ab70edde8b097acff35c157f4a074fbfd8406"
+    },
+    {
+      "name": "xbl_config",
+      "size": 237568,
+      "needs_source": false,
+      "operations": "REPLACE_XZ",
+      "hash": "e21f6356208005d2b11d715378de0e2b745e67831d85bec74d023aeb17ddf4c4"
+    },
+    {
+      "name": "xbl_ramdump",
+      "size": 909312,
+      "needs_source": true,
+      "operations": "SOURCE_COPY, ZERO, BROTLI_BSDIFF",
+      "hash": "c0907a72172fbf495505872f89c2a36baadd4818445328b7385b16f3293d2a83"
+    },
+    {
+      "name": "my_product",
+      "size": 1293402112,
+      "needs_source": true,
+      "operations": "REPLACE, REPLACE_BZ, SOURCE_COPY, ZERO, REPLACE_XZ, BROTLI_BSDIFF",
+      "hash": "9448e36ebb6800ff0b90efa775c2cd7cb42d5c8a94d27474973d807380e3b149"
+    },
+    {
+      "name": "my_engineering",
+      "size": 335872,
+      "needs_source": true,
+      "operations": "SOURCE_COPY, ZERO, BROTLI_BSDIFF",
+      "hash": "b4c68238c0041705d5bc76dd96249635467b55dd57ad0e62e5b8fb4af3c4dfe6"
+    },
+    {
+      "name": "my_stock",
+      "size": 4719251456,
+      "needs_source": true,
+      "operations": "REPLACE, SOURCE_COPY, ZERO, REPLACE_XZ, BROTLI_BSDIFF",
+      "hash": "516ac48e15ee1ea34319a2983bf7805867e29ca336bf193a85fca346160e49ad"
+    },
+    {
+      "name": "my_carrier",
+      "size": 335872,
+      "needs_source": true,
+      "operations": "SOURCE_COPY, ZERO, BROTLI_BSDIFF",
+      "hash": "9694a2a13aa6be5d86ae89aef29d62ef586468fcee989eaf96a3ec57f2222a55"
+    },
+    {
+      "name": "my_region",
+      "size": 7254016,
+      "needs_source": true,
+      "operations": "SOURCE_COPY, ZERO, BROTLI_BSDIFF",
+      "hash": "8c10d2e5cd10019c8d59e51c3d6973aeb495281cb6003c30b5bd052ece979131"
+    },
+    {
+      "name": "my_bigball",
+      "size": 335872,
+      "needs_source": true,
+      "operations": "SOURCE_COPY, ZERO, BROTLI_BSDIFF",
+      "hash": "d5fc02100b528046eaf468f6b605a560f909be8a7c14a44a2c6301ad7413869f"
+    },
+    {
+      "name": "my_heytap",
+      "size": 335872,
+      "needs_source": true,
+      "operations": "SOURCE_COPY, ZERO, BROTLI_BSDIFF",
+      "hash": "083e1ebbbdb9866bd562a7f3b44e439d91c340231f32bc2f13e1308ff8e4ef2d"
+    },
+    {
+      "name": "my_manifest",
+      "size": 729088,
+      "needs_source": true,
+      "operations": "ZERO, BROTLI_BSDIFF",
+      "hash": "42423d1ca03c1b8174ee6af7299d3b398da6ebe49d7a42cb3536f0304f6cc663"
+    }
+  ],
+  "init_boot_validation": {
+    "size": 8388608,
+    "sha256": "40d8fde217cd5d52509c8762c70cadb0fd4c7fc73d1d726f2f478639cd880a46",
+    "manifest_sha256": "40d8fde217cd5d52509c8762c70cadb0fd4c7fc73d1d726f2f478639cd880a46"
+  }
+}

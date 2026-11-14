@@ -1,0 +1,19 @@
+{
+  "firmware": "PHY110_17.0.0.100(CN01)",
+  "ota": "PHY110_11.H.10_3100_202610291237",
+  "package_size": 9284634542,
+  "partition": "init_boot",
+  "manifest_sha256": "40d8fde217cd5d52509c8762c70cadb0fd4c7fc73d1d726f2f478639cd880a46",
+  "results": [
+    {
+      "engine": "ssut",
+      "size": 8388608,
+      "sha256": "40d8fde217cd5d52509c8762c70cadb0fd4c7fc73d1d726f2f478639cd880a46"
+    },
+    {
+      "engine": "xishang",
+      "size": 8388608,
+      "sha256": "40d8fde217cd5d52509c8762c70cadb0fd4c7fc73d1d726f2f478639cd880a46"
+    }
+  ]
+}
