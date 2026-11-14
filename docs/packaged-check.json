@@ -1,7 +1,9 @@
 {
   "ok": true,
-  "version": "1.0.2",
+  "version": "1.0.3",
   "bundled_baseline_profiles": 2,
+  "bundled_model_profiles": 1185,
+  "manual_model_selection": true,
   "root_policy": "manual-button-only",
   "root_button": "尝试 root 获取 GUID 和 DUID",
   "crypto": "AES-CTR and RSA-OAEP verified",

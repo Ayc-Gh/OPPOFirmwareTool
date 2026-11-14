@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (QApplication,QMainWindow,QWidget,QVBoxLayout,QHBo
     QTableWidget,QTableWidgetItem,QHeaderView,QAbstractItemView,QFileDialog,QMessageBox,
     QProgressBar,QCheckBox,QSplitter,QScrollArea,QFrame,QSizePolicy)
 from oplus_tool import __version__
-from oplus_tool import adb,tracker,payload,engine
+from oplus_tool import adb,tracker,payload,engine,models
 from oplus_tool.catalog import Catalog
 from oplus_tool.common import DATA,HOME,RESOURCE,Cancelled,atomic_json,size_text,safe_name
 from oplus_tool.network import download
@@ -102,6 +102,7 @@ class Window(QMainWindow):
         self.catalog=Catalog();self.devices=[];self.packages=[];self.visible_packages=[];self.online_packages=[]
         self.selected_package=None;self.info=None;self.current_device=None;self.job=None;self.scan_job=None;self.closing=False
         self.root_identifiers={}
+        self.model_profiles=models.load_profiles();self.catalog_scope=None
         self.pool=QThreadPool(self);self.pool.setMaxThreadCount(3);self.busy_buttons=[];self.params={}
         self.settings={}
         try:self.settings=json.loads((DATA/'settings.json').read_text(encoding='utf-8'))
@@ -111,11 +112,22 @@ class Window(QMainWindow):
         title=QLabel('OPPO 固件工作台');title.setObjectName('title')
         sub=QLabel(f'设备连接  /  固件获取  /  镜像提取     ·     v{__version__}');sub.setObjectName('subtitle')
         layout.addWidget(row(title,1,sub))
-        self.device_combo=QComboBox();self.device_combo.setMinimumWidth(410);self.device_combo.currentIndexChanged.connect(self.select_device)
+        self.target_mode=QComboBox();self.target_mode.addItems(['ADB 已连接设备','手动选择机型'])
+        self.device_combo=QComboBox();self.device_combo.setMinimumWidth(310);self.device_combo.currentIndexChanged.connect(self.select_device)
         self.scan_button=button('刷新 ADB 设备',self.scan_devices)
         self.auto_check=QCheckBox('连接后自动查询固件');self.auto_check.setChecked(self.settings.get('auto_query',True))
         self.connection=QLabel('正在检查已连接设备…');self.connection.setObjectName('hint')
-        layout.addWidget(row(QLabel('当前设备'),self.device_combo,self.scan_button,self.auto_check,1,self.connection))
+        layout.addWidget(row(self.target_mode,self.device_combo,self.scan_button,self.auto_check,1,self.connection))
+        self.model_brand=QComboBox()
+        for label,value in [('OPPO','OPPO'),('一加 OnePlus','OnePlus'),('真我 realme','realme')]:self.model_brand.addItem(label,value)
+        self.model_search=QLineEdit();self.model_search.setPlaceholderText('搜索名称 / 型号 / 设备代号');self.model_search.setClearButtonEnabled(True)
+        self.model_search.setMinimumWidth(190);self.model_search.setMaximumWidth(300)
+        self.model_combo=QComboBox();self.model_combo.setMinimumWidth(320);self.model_combo.setSizePolicy(QSizePolicy.Expanding,QSizePolicy.Fixed)
+        self.model_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon);self.model_combo.setMinimumContentsLength(28)
+        self.model_combo.setToolTip('公开机型目录；条目不代表官方当前有可见固件。目录未收录的型号可选择“自定义机型”。')
+        self.apply_model_button=button('填入机型信息',self.apply_manual_model)
+        self.manual_row=row(QLabel('机型'),self.model_brand,self.model_search,self.model_combo,self.apply_model_button)
+        layout.addWidget(self.manual_row);self.manual_row.hide()
         self.tabs=QTabWidget();layout.addWidget(self.tabs,1)
         self.build_devices();self.build_firmware();self.build_extract()
         self.status=QLabel('就绪');self.status.setWordWrap(True);self.status.setTextFormat(Qt.PlainText)
@@ -137,6 +149,9 @@ class Window(QMainWindow):
         self.params['model'].textChanged.connect(lambda:self.catalog_timer.start())
         self.params['region'].currentIndexChanged.connect(lambda:self.catalog_timer.start())
         self.params['region'].activated.connect(self.region_changed)
+        self.target_mode.currentIndexChanged.connect(self.target_mode_changed)
+        self.model_brand.currentIndexChanged.connect(self.filter_models);self.model_search.textChanged.connect(self.filter_models)
+        self.model_combo.activated.connect(self.apply_manual_model);self.filter_models()
         QTimer.singleShot(200,self.scan_devices)
 
     def build_devices(self):
@@ -145,7 +160,7 @@ class Window(QMainWindow):
         for i,(key,label) in enumerate([('name','设备名称'),('model','机型 / 设备代号'),('serial','ADB 序列号'),('firmware','当前系统固件'),('slot','当前 A/B 槽位'),('region','地区 / ColorOS')]):
             box=QGroupBox(label);bl=QVBoxLayout(box);v=QLabel('—');v.setWordWrap(True);v.setTextInteractionFlags(Qt.TextSelectableByMouse);v.setObjectName('value');bl.addWidget(v);grid.addWidget(box,i//3,i%3);self.device_labels[key]=v
         lay.addLayout(grid)
-        query=QGroupBox('查询参数 · 自动读取，可补充');qgrid=QGridLayout(query)
+        query=QGroupBox('查询参数 · ADB 读取或手选机型填入，可补充');qgrid=QGridLayout(query)
         fields=[('model','OTA 机型'),('region','固件地区'),('ota','完整 OTA 版本'),('nvid','NV 运营商 ID'),('project','项目号 PrjNum'),('serial','设备 SN'),('guid','GUID（尝鲜 PRE）'),('duid','DUID（官方降级）'),('suffixes','查询分支'),('extra_versions','补充完整 OTA 版本')]
         for i,(key,label) in enumerate(fields):
             edit=QComboBox() if key=='region' else QLineEdit()
@@ -187,7 +202,7 @@ class Window(QMainWindow):
         refresh=button('刷新固件列表',self.query_firmware,True);export=button('导出查询记录',self.export_catalog)
         self.busy_buttons.extend([refresh,export])
         lay.addWidget(row(self.channel_filter,self.major_filter,self.kind_filter,self.search,refresh,export))
-        self.count=QLabel('连接设备后自动获取可见固件，也可在“设备与参数”中手动查询。');self.count.setObjectName('hint');lay.addWidget(self.count)
+        self.count=QLabel('连接设备或手选机型后，可查询固件并在线提取镜像。');self.count.setObjectName('hint');lay.addWidget(self.count)
         self.package_table=table(['包版本（单击复制 OTA 名称）','包类型','组件','大小','更新日期 ↓','ColorOS','增量安装基线'])
         self.package_table.horizontalHeader().setSectionResizeMode(0,QHeaderView.Stretch)
         self.package_table.horizontalHeader().setStretchLastSection(False)
@@ -276,19 +291,69 @@ class Window(QMainWindow):
         if result:self.job.signals.result.connect(result)
         self.job.signals.finished.connect(self.finish_job)
         for b in self.busy_buttons:b.setEnabled(False)
-        self.device_combo.setEnabled(False);self.scan_button.setEnabled(False);self.cancel_button.setEnabled(True)
+        self.set_target_controls(False);self.scan_button.setEnabled(False);self.cancel_button.setEnabled(True)
         self.status.setText(title);self.progress.setRange(0,0);self.pool.start(self.job);return True
     def finish_job(self):
         self.job=None
         for b in self.busy_buttons:b.setEnabled(True)
-        self.device_combo.setEnabled(True);self.scan_button.setEnabled(True);self.cancel_button.setEnabled(False)
+        self.set_target_controls(True);self.scan_button.setEnabled(not bool(self.scan_job));self.cancel_button.setEnabled(False)
         self.update_root_button()
         if self.progress.maximum()==0:self.progress.setRange(0,100);self.progress.setValue(0)
         if self.closing:self.close()
     def cancel_job(self):
         if self.job:self.job.cancel.set();self.status.setText('正在取消，等待当前操作退出…')
+    def set_target_controls(self,enabled):
+        self.target_mode.setEnabled(enabled)
+        self.device_combo.setEnabled(enabled and self.target_mode.currentIndex()==0)
+        for widget in (self.model_brand,self.model_search,self.model_combo,self.apply_model_button):widget.setEnabled(enabled)
+    def filter_models(self,*args):
+        old=self.model_combo.currentData();self.model_combo.blockSignals(True);self.model_combo.clear()
+        profiles=[p for p in self.model_profiles if p.brand==self.model_brand.currentData() and p.matches(self.model_search.text())]
+        self.model_combo.addItem(f'请选择机型（{len(profiles)} 项）',None)
+        for p in profiles:
+            self.model_combo.addItem(p.label,p.model);self.model_combo.setItemData(self.model_combo.count()-1,p.label,Qt.ToolTipRole)
+        self.model_combo.addItem('自定义机型 · 在下方填写 OTA 机型和地区','__custom__')
+        self.model_combo.setCurrentIndex(max(0,self.model_combo.findData(old)));self.model_combo.blockSignals(False)
+    def clear_target(self):
+        self.current_device=None
+        for label in self.device_labels.values():label.setText('—')
+        for key,edit in self.params.items():
+            if key=='region':edit.setCurrentIndex(0)
+            elif key=='suffixes':edit.setText('A,C,F,H,J')
+            else:edit.clear()
+        self.components.clear();self.custom_check.setChecked(False);self.catalog_timer.stop()
+        self.load_catalog();self.update_root_button()
+    def target_mode_changed(self,index):
+        self.manual_row.setVisible(index==1);self.auto_check.setEnabled(index==0)
+        self.set_target_controls(not bool(self.job))
+        self.clear_target()
+        if index==0:
+            self.select_device(self.device_combo.currentIndex())
+            if not self.current_device:self.status.setText('请刷新并选择 ADB 设备，或切换为“手动选择机型”。')
+        elif self.model_combo.currentData():self.apply_manual_model()
+        else:self.status.setText('请选择机型；无需连接手机。选择后可调整固件地区，再查询和在线解包。')
+    def apply_manual_model(self,*args):
+        if self.job or self.target_mode.currentIndex()!=1:return
+        code=self.model_combo.currentData()
+        if not code:self.toast('请先选择机型，或选择“自定义机型”。');return
+        profile=next((p for p in self.model_profiles if p.model==code and p.brand==self.model_brand.currentData()),None)
+        self.clear_target()
+        if not profile:
+            self.device_labels['name'].setText('自定义机型')
+            self.status.setText('请填写 OTA 机型和固件地区，再点击“查询全部可见固件”。');self.params['model'].setFocus();return
+        self.params['model'].setText(profile.model)
+        self.params['region'].setCurrentIndex(max(0,self.params['region'].findData(profile.region)))
+        self.region_changed()
+        self.device_labels['name'].setText(profile.name)
+        self.device_labels['model'].setText(profile.model+' / '+('、'.join(profile.codenames) or '代号未知'))
+        self.device_labels['serial'].setText('手选机型 · 未读取设备')
+        self.device_labels['firmware'].setText('未连接设备，可补充 OTA / 组件基线')
+        self.device_labels['slot'].setText('未读取')
+        self.device_labels['region'].setText((profile.region or '请选择固件地区')+' / 版本以查询结果为准')
+        self.catalog_timer.stop();self.load_catalog()
+        self.status.setText('已填入 '+profile.label+'；'+('可调整地区后查询固件。' if profile.region else '请先选择固件地区，再查询固件。'))
     def scan_devices(self):
-        if self.scan_job:return
+        if self.scan_job or self.job:return
         self.scan_button.setEnabled(False);self.connection.setText('正在刷新 ADB…')
         custom=self.tool_edits['adb'].text().strip()
         self.scan_job=Job(lambda c,s:adb.scan(custom));self.scan_job.signals.result.connect(self.devices_found)
@@ -303,18 +368,15 @@ class Window(QMainWindow):
         index=next((i for i,d in enumerate(devices) if d.serial==old),0);self.device_combo.setCurrentIndex(index);self.device_combo.blockSignals(False)
         for note in notes:self.log(note)
         self.connection.setText(f'{len(devices)} 台 OPlus 设备已连接'+(' · 有未授权设备，见日志' if notes else ''))
+        if self.target_mode.currentIndex()==1:
+            self.update_root_button();return
         if devices:self.select_device(index)
         else:
-            self.current_device=None
-            for label in self.device_labels.values():label.setText('—')
-            for key,edit in self.params.items():
-                if key=='region':edit.setCurrentIndex(0)
-                elif key!='suffixes':edit.clear()
-            self.components.clear();self.packages=[];self.populate_filters();self.filter_packages();self.filter_online()
-            self.update_root_button()
-            self.status.setText('请启用手机 USB 调试并授权；也可手动填写机型/地区后查询，或直接解包本地固件。')
+            self.clear_target()
+            self.status.setText('请启用手机 USB 调试并授权；也可切换为“手动选择机型”查询，或直接解包本地固件。')
     def select_device(self,index):
-        if not 0<=index<len(self.devices):return
+        if self.job or self.target_mode.currentIndex()!=0 or not 0<=index<len(self.devices):return
+        self.clear_target()
         d=self.devices[index];self.current_device=d
         values={'name':d.name,'model':d.model+' / '+d.codename,'serial':d.serial,'firmware':d.firmware,'slot':d.slot.upper(),'region':(d.region or '未知')+' / ColorOS '+(d.coloros or '未知')}
         for key,value in values.items():self.device_labels[key].setText(value or '—')
@@ -328,13 +390,17 @@ class Window(QMainWindow):
         self.catalog.remember_baseline(d.model,d.region,d.ota,d.components,d.nvid)
         self.load_catalog();self.status.setText('已读取设备信息：'+d.name)
         self.update_root_button()
-        if self.auto_check.isChecked() and not self.no_auto:QTimer.singleShot(100,self.query_firmware)
+        if self.auto_check.isChecked() and not self.no_auto:
+            QTimer.singleShot(100,lambda:self.query_connected_device(d))
+    def query_connected_device(self,device):
+        if self.target_mode.currentIndex()==0 and self.current_device is device and self.auto_check.isChecked() and not self.job:
+            self.query_firmware()
     def update_root_button(self):
-        self.root_button.setEnabled(bool(self.current_device) and not self.job and not self.scan_job)
+        self.root_button.setEnabled(self.target_mode.currentIndex()==0 and bool(self.current_device) and not self.job and not self.scan_job)
     def try_root_identifiers(self):
         if self.job or self.scan_job:
             self.toast('请等待当前任务结束后再尝试 root 读取。');return
-        if not self.current_device:
+        if self.target_mode.currentIndex()!=0 or not self.current_device:
             self.toast('请先选择已连接的 OPlus 设备。');return
         serial=self.current_device.serial;custom=self.tool_edits['adb'].text().strip()
         original={key:self.params[key].text() for key in ('guid','duid')}
@@ -363,8 +429,16 @@ class Window(QMainWindow):
         if region:
             _,config=tracker.upstream.get_public_key_for_region(region)
             self.params['nvid'].setText(config['carrier_id'])
+        else:self.params['nvid'].clear()
+        if self.target_mode.currentIndex()==1:self.device_labels['region'].setText((region or '请选择固件地区')+' / 版本以查询结果为准')
     def load_catalog(self):
-        opts=self.get_options();self.packages=self.catalog.list(opts.model,opts.region)
+        opts=self.get_options();scope=(opts.model,opts.region)
+        if scope!=self.catalog_scope:
+            self.catalog_scope=scope
+            if self.source_mode.currentIndex()==1:
+                self.source_edit.clear();self.invalidate_info()
+                self.extract_hint.setText('查询机型或地区已更换，请重新选择在线固件并读取镜像。')
+        self.packages=self.catalog.list(opts.model,opts.region)
         self.populate_filters();self.filter_packages();self.filter_online()
     def populate_filters(self):
         majors=sorted({p.major for p in self.packages if p.major!='未知'},key=lambda x:int(x) if x.isdigit() else 0,reverse=True)

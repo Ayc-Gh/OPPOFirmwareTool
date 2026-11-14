@@ -5,7 +5,7 @@ import struct
 import tempfile
 import threading
 from pathlib import Path
-from . import adb,payload,engine,__version__
+from . import adb,payload,engine,models,__version__
 from .common import atomic_json
 
 def run(window,report):
@@ -31,8 +31,11 @@ def run(window,report):
     devices,notes=adb.scan()
     profiles=json.loads((Path(__file__).resolve().parent/'data/verified_baselines.json').read_text(encoding='utf-8'))
     assert profiles and all(p.get('ota','').startswith(p.get('model','')+'_') for p in profiles)
+    model_profiles=models.load_profiles()
+    assert any(p.model=='PHY110' and 'OP565FL1' in p.codenames for p in model_profiles)
     atomic_json(Path(report),{'ok':all(h==digest.hex() for h in results.values()),'version':__version__,
         'bundled_baseline_profiles':len(profiles),
+        'bundled_model_profiles':len(model_profiles),'manual_model_selection':True,
         'root_policy':'manual-button-only','root_button':window.root_button.text(),
         'crypto':'AES-CTR and RSA-OAEP verified',
         'tabs':[window.tabs.tabText(i) for i in range(window.tabs.count())],

@@ -12,3 +12,7 @@ This application is provided under GPL-3.0-only. Its complete editable source an
 * **PyInstaller**, PyInstaller development team, GPL-2.0-or-later with the bootloader exception. https://pyinstaller.org/ . No restriction on distributing generated applications is imposed by the bootloader exception. License texts are collected from the installed package when building.
 
 Artifact versions and recorded SHA256 values are in `tools/versions.json`. No vendor private keys, device keyboxes, firmware packages or credentials are bundled.
+
+## 公开机型信息来源
+
+`oplus_tool/data/model_catalog.json` 中的机型名称、型号和设备代号事实来自 Google Play 公布的设备 CSV：https://storage.googleapis.com/play_public/supported_devices.csv 。说明页面：https://support.google.com/googleplay/answer/1727131 。目录记录来源、获取时间及原文件 SHA256；只整理 OPPO、OnePlus、realme 条目，不包含设备身份标识。地区默认值由本工具按国行 P 系列代码规则建议，不是 Google 提供的字段。机型收录不保证 OTA 接口支持。
