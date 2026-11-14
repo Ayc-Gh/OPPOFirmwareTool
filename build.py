@@ -39,6 +39,8 @@ def main():
     (target/'tools').mkdir(exist_ok=True)
     for name in ['adb.exe','AdbWinApi.dll','AdbWinUsbApi.dll','payload-dumper-go.exe','payload-dumper-xishang.exe','versions.json']:
         shutil.copy2(ROOT/'tools'/name,target/'tools'/name)
+    if (ROOT/'tools/apk').exists():
+        shutil.copytree(ROOT/'tools/apk',target/'tools/apk',dirs_exist_ok=True)
     for name in ('README.md','THIRD_PARTY_NOTICES.md','LICENSE'):
         shutil.copy2(ROOT/name,target/name)
     shutil.copytree(ROOT/'licenses',target/'licenses',dirs_exist_ok=True)

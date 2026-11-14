@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (QApplication,QMainWindow,QWidget,QVBoxLayout,QHBo
     QTableWidget,QTableWidgetItem,QHeaderView,QAbstractItemView,QFileDialog,QMessageBox,
     QProgressBar,QCheckBox,QSplitter,QScrollArea,QFrame,QSizePolicy)
 from oplus_tool import __version__
-from oplus_tool import adb,tracker,payload,engine,models
+from oplus_tool import adb,tracker,payload,engine,models,push
 from oplus_tool.catalog import Catalog
 from oplus_tool.common import DATA,HOME,RESOURCE,Cancelled,atomic_json,size_text,safe_name
 from oplus_tool.network import download
@@ -215,8 +215,10 @@ class Window(QMainWindow):
         self.refresh_link_button=button('刷新此包链接',self.refresh_link)
         self.download_button=button('下载完整固件',self.download_package,True)
         self.online_button=button('在线选择镜像',self.use_online_package)
-        self.busy_buttons.extend([self.refresh_link_button,self.download_button,self.online_button])
-        dl.addWidget(row(button('复制包名',lambda:self.copy_text(self.selected_package.ota if self.selected_package else '')),button('复制链接',lambda:self.copy_text(self.url_edit.text())),self.refresh_link_button,1,self.online_button,self.download_button));lay.addWidget(detail)
+        self.push_selected_button=button('推送此固件至手机并安装',self.push_selected_package)
+        self.push_local_button=button('推送本地降级包…',self.push_local_package)
+        self.busy_buttons.extend([self.refresh_link_button,self.download_button,self.online_button,self.push_selected_button,self.push_local_button])
+        dl.addWidget(row(button('复制包名',lambda:self.copy_text(self.selected_package.ota if self.selected_package else '')),button('复制链接',lambda:self.copy_text(self.url_edit.text())),self.refresh_link_button,1,self.push_local_button,self.push_selected_button,self.online_button,self.download_button));lay.addWidget(detail)
         for combo in (self.channel_filter,self.major_filter,self.kind_filter):combo.currentIndexChanged.connect(self.filter_packages)
         self.search.textChanged.connect(self.filter_packages)
         self.tabs.addTab(page,'02  固件获取')
@@ -500,6 +502,54 @@ class Window(QMainWindow):
             url=tracker.resolve_url(p.original_url or p.url)
             return download(url,dest,c,s.progress.emit,p.size,p.md5,p.sha256)
         self.start_job(work,lambda path:self.toast('已下载到 '+str(path)),'正在准备下载；支持断点续传…')
+    def push_local_package(self):
+        dest,_=QFileDialog.getOpenFileName(self,'选择官方固件包（.ozip / .zip）',str(self.settings.get('download_dir',str(HOME/'downloads'))),'官方固件 (*.ozip *.zip);;所有文件 (*)')
+        if not dest:return
+        self.do_push_package(Path(dest))
+    def push_selected_package(self):
+        if not self.selected_package:
+            self.toast('请先在上方列表中选择一个固件包。');return
+        p=self.selected_package
+        name=safe_name(p.ota+'_'+p.component+'_'+p.kind)+'.zip'
+        expected=Path(self.settings.get('download_dir',str(HOME/'downloads')))/name
+        if expected.is_file():
+            self.do_push_package(expected)
+            return
+        reply=QMessageBox.question(self,'固件尚未下载',f'默认下载目录中尚未找到此包文件：\n{name}\n\n是否手动选择本地已下载好的固件文件？',QMessageBox.Yes|QMessageBox.No)
+        if reply==QMessageBox.Yes:
+            self.push_local_package()
+    def do_push_package(self,local_path:Path):
+        if not self.current_device:
+            self.show_error('未检测到已连接的 OPlus 设备。\n\n请先启用手机 USB 调试并连接电脑授权，再执行固件推送。')
+            return
+        warnings, errors = push.inspect_package_safety(local_path, self.current_device.model)
+        if errors:
+            QMessageBox.critical(self, '固件包安全拦截', '检测到固件包存在严重问题，无法进行推送：\n\n' + '\n\n'.join(errors))
+            return
+        serial=self.current_device.serial
+        custom_adb=self.tool_edits['adb'].text().strip()
+        warn_text = ('\n\n⚠️ 发现潜在问题：\n' + '\n'.join(warnings) + '\n') if warnings else ''
+        confirm=QMessageBox.warning(self,'重要安全与数据清除提醒',
+            f'即将向已连接设备推送官方固件并唤起系统更新程序：\n\n'
+            f'• 目标设备：{self.current_device.name} ({serial})\n'
+            f'• 固件文件：{local_path.name} ({local_path.stat().st_size / 1024**3:.2f} GiB)\n'
+            f'{warn_text}\n'
+            f'⚠️ 重要风险须知：\n'
+            f'1. 官方降级包在系统更新校验并安装时，会【清除手机全部用户数据（恢复出厂设置）】！\n'
+            f'2. 请务必在开始前确保手机重要数据（微信聊天、相册、联系人等）已完成外部备份！\n'
+            f'3. 请保持手机电量在 50% 以上，推送期间切勿拔除 USB 线缆。\n\n'
+            f'是否已完成重要数据备份，并确认继续开始推送？',
+            QMessageBox.Yes|QMessageBox.No,QMessageBox.No)
+        if confirm!=QMessageBox.Yes:return
+        def work(c,s):
+            push.push_and_install(serial,local_path,custom_adb,c,s.progress.emit,s.log.emit)
+        def done(*args):
+            QMessageBox.information(self,'固件已推送',
+                '降级固件已成功推送到手机存储，并已唤起官方系统更新界面！\n\n'
+                '请在手机屏幕上点击“立即安装/确认更新”并按照提示完成降级。\n'
+                '（手机将自动验证安装包并重启执行回退）')
+            self.status.setText('降级包推送完成，已唤起手机系统更新。')
+        self.start_job(work,done,f'正在向 {self.current_device.name} 推送固件…')
     def export_catalog(self):
         opts=self.get_options();dest,_=QFileDialog.getSaveFileName(self,'导出固件目录',str(HOME/(safe_name(opts.model)+'_firmware.json')),'JSON (*.json)')
         if dest:self.catalog.export(opts.model,opts.region,Path(dest));self.toast('查询记录已导出；临时链接仍受有效期限制')

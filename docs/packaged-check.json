@@ -24,5 +24,7 @@
       "region": "cn"
     }
   ],
-  "adb_notes": []
+  "adb_notes": [
+    "emulator-5554: offline（请在手机授权 USB 调试或重新连接）"
+  ]
 }
