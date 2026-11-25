@@ -1,29 +1,20 @@
-"""Push downgrade packages to OPlus devices and trigger official local OTA installation.
-
-Based on reverse engineering of ColorOS Assistant & OTA Assistant APK:
-1. Ensure com.color.otaassistant is installed.
-2. Push downgrade package (.ozip / .zip) to /sdcard/.
-3. Broadcast to wake up OtaAssistantReceiver.
-4. Insert local_file_uri and forbid_check_update into DataSharedProvider.
-5. Launch com.oplus.ota/com.oplus.otaui.activity.EntryActivity with InstallPackage extra.
-"""
+"""Push a verified package and stop at the stock updater’s package preview."""
 from __future__ import annotations
 import re
 import subprocess
+import threading
 import time
+import zipfile
 from pathlib import Path
 from uuid import uuid4
 from .common import RESOURCE, HOME, CREATE_NO_WINDOW, check_cancel, Cancelled
 from .adb import adb_path, command, device_from_props, parse_props
+from .ota_picker import LEGACY_ENTRY, MODERN_ENTRY, LocalUpdatePicker
 from .push_validation import inspect_package_safety, validate_push_source
 
 PACKAGE_ASSISTANT = "com.color.otaassistant"
-RECEIVER_ACTION = "oplus.intent.action.OTA_ASSISTANT_PC_TOOL_RECEIVER"
-RECEIVER_COMPONENT = "com.color.otaassistant/.OtaAssistantReceiver"
-PROVIDER_URI = "content://com.color.otaassistant.DataSharedProvider/data"
-
-ENTRY_ACTIVITY_NEW = "com.oplus.ota/com.oplus.otaui.activity.EntryActivity"
-ENTRY_ACTIVITY_LEGACY = "com.oppo.ota/com.oppo.otaui.activity.EntryActivity"
+_picker_lock = threading.Lock()
+_active_pickers = set()
 
 def get_assistant_apk(is_legacy=False, custom_dir="") -> Path:
     """Find the OTA assistant APK matching device Android/ColorOS version."""
@@ -157,53 +148,45 @@ def _push_package_file(serial: str, local_path: Path, remote_path: str, custom_a
     if fields[0].lower() != expected_sha256:
         raise RuntimeError("手机端固件 SHA256 与本地文件不一致。")
 
-def trigger_downgrade(serial: str, remote_path: str, custom_adb="", is_legacy=False, log=None):
-    """Wake assistant, write Provider data, and start system OTA EntryActivity."""
-    if log:
-        log("正在唤醒官方降级伴生应用服务…")
+def _package_version(path):
+    try:
+        with zipfile.ZipFile(path) as archive:
+            for name in ("META-INF/com/android/metadata", "metadata"):
+                if name not in archive.namelist():
+                    continue
+                with archive.open(name) as metadata:
+                    raw = metadata.read(65537)
+                if len(raw) > 65536:
+                    raise ValueError("固件的版本元数据过大。")
+                for line in raw.decode("utf-8", errors="replace").splitlines():
+                    key, _, value = line.partition("=")
+                    if key == "version_name":
+                        return value.strip()
+    except zipfile.BadZipFile:
+        pass  # Catalog-verified encrypted OZIPs have no readable ZIP metadata.
+    return ""
 
-    cmd_broadcast = ["-s", serial, "shell", "am", "broadcast", "-n", RECEIVER_COMPONENT, "-a", RECEIVER_ACTION, "-f", "16777248"]
-    command(cmd_broadcast, custom_adb, timeout=10)
-    time.sleep(0.5)
 
-    if log:
-        log(f"向本地数据通道配置固件参数：{remote_path}…")
-    cmd_provider_uri = [
-        "-s", serial, "shell", "content", "insert",
-        "--uri", PROVIDER_URI,
-        "--bind", "name:s:local_file_uri",
-        "--bind", f"value:s:{remote_path}"
-    ]
-    command(cmd_provider_uri, custom_adb, timeout=10)
+def trigger_downgrade(serial: str, remote_path: str, custom_adb="", is_legacy=False, log=None,
+                      *, expected_size=None, expected_version="", cancel=None):
+    """Return the verified stock updater preview, leaving final confirmation to the user."""
+    # Two simultaneous transfers may finish together, but share one phone UI.
+    with _picker_lock:
+        if serial in _active_pickers:
+            raise RuntimeError("另一项任务正在此手机上选择固件。")
+        _active_pickers.add(serial)
+    try:
+        picker = LocalUpdatePicker(serial, custom_adb, cancel)
+        return picker.handoff(remote_path, LEGACY_ENTRY if is_legacy else MODERN_ENTRY,
+                              expected_size, expected_version, log)
+    finally:
+        with _picker_lock:
+            _active_pickers.remove(serial)
 
-    cmd_provider_forbid = [
-        "-s", serial, "shell", "content", "insert",
-        "--uri", PROVIDER_URI,
-        "--bind", "name:s:forbid_check_update",
-        "--bind", "value:s:true"
-    ]
-    command(cmd_provider_forbid, custom_adb, timeout=10)
-    time.sleep(0.5)
-
-    entry = ENTRY_ACTIVITY_LEGACY if is_legacy else ENTRY_ACTIVITY_NEW
-    if log:
-        log(f"唤起官方系统更新组件：{entry}…")
-    cmd_start = ["-s", serial, "shell", "am", "start", "-n", entry, "-e", "InstallPackage", remote_path]
-    out = command(cmd_start, custom_adb, timeout=15)
-    if "error" in out.lower() or "exception" in out.lower():
-        if log:
-            log(f"主入口唤起异常，尝试备用入口… ({out.strip()})")
-        alt_entry = ENTRY_ACTIVITY_NEW if is_legacy else ENTRY_ACTIVITY_LEGACY
-        alt_out = command(["-s", serial, "shell", "am", "start", "-n", alt_entry, "-e", "InstallPackage", remote_path], custom_adb, timeout=15)
-        if "error" in alt_out.lower() or "exception" in alt_out.lower():
-            raise RuntimeError(f"手机报告两个系统更新入口均未能唤起：{alt_out.strip()}")
-
-    if log:
-        log("官方系统更新程序已成功唤起！请在手机屏幕上确认并继续完成降级安装。")
 
 def push_and_install(serial: str, local_package: Path, custom_adb="", cancel=None, progress=None, log=None,
                      *, expected_model="", record=None):
-    """Full workflow: preflight -> install assistant -> check storage -> push -> trigger."""
+    """Verify, transfer and display the package in the stock local-update picker."""
     if cancel is not None: check_cancel(cancel)
     local_package = Path(local_package)
     if not local_package.is_file():
@@ -215,7 +198,8 @@ def push_and_install(serial: str, local_package: Path, custom_adb="", cancel=Non
         raise ValueError("无法核实已连接设备的机型，请重新读取设备。")
     if expected_model and device.model.casefold() != expected_model.casefold():
         raise ValueError("设备型号自确认后已变化，请重新选择设备。")
-    local_sha256 = validate_push_source(local_package, device, record, cancel, progress)
+    local_sha256 = validate_push_source(local_package, device, record, cancel, progress, custom_adb=custom_adb)
+    expected_version = _package_version(local_package)
     release = props.get("ro.build.version.release", "").split(".")[0]
     android_ver = int(release) if release.isdigit() else 12
     is_legacy = android_ver < 11
@@ -231,13 +215,6 @@ def push_and_install(serial: str, local_package: Path, custom_adb="", cancel=Non
             log(f"手机存储可用空间: {avail / 1024**3:.2f} GiB，固件包所需空间: {req_size / 1024**3:.2f} GiB")
         if avail < req_size + 300 * 1024 * 1024:
             raise RuntimeError(f"手机存储空间不足！剩余空间 {avail / 1024**3:.2f} GiB，需要至少 {(req_size + 300*1024*1024) / 1024**3:.2f} GiB。请清理手机存储后重试。")
-
-    if cancel is not None: check_cancel(cancel)
-    if not check_assistant_installed(serial, custom_adb):
-        apk_path = get_assistant_apk(is_legacy=is_legacy)
-        install_assistant(serial, apk_path, custom_adb, log)
-    elif log:
-        log("设备已安装降级伴生应用，跳过安装。")
 
     suffix = '.zip' if local_package.suffix.lower() == '.zip' else '.ozip'
     remote_dir = f"/sdcard/OPPOFirmwareTool-{uuid4().hex}"
@@ -266,10 +243,14 @@ def push_and_install(serial: str, local_package: Path, custom_adb="", cancel=Non
     # An ADB error can arrive after Android has accepted the path. From this
     # point the updater may still be reading the verified file.
     try:
-        trigger_downgrade(serial, target_remote, custom_adb, is_legacy, log)
+        result = trigger_downgrade(serial, target_remote, custom_adb, is_legacy, log,
+                                   expected_size=req_size, expected_version=expected_version, cancel=cancel)
     except Exception as exc:
         message = (f"无法确认手机系统更新程序的交接结果。已保留核验通过的固件：{target_remote}。"
                    f"请查看手机更新界面，确认安装状态后再处理该文件。详情：{exc}")
         if log:
             log(message)
         raise RuntimeError(message) from exc
+    if log:
+        log(f"系统更新器已显示安装确认页：{result}")
+    return result

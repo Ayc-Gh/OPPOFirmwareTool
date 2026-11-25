@@ -250,13 +250,14 @@ class UpdaterStatusTests(unittest.TestCase):
         attempts = []
         def shell(args, custom="", timeout=10):
             if args[3:5] == ["am", "start"]:
-                attempts.append(args[6])
+                attempts.append(args[-1])
                 return "Error type 3: Activity does not exist"
             return ""
 
         messages = []
-        with patch.object(push, "command", side_effect=shell), patch.object(push.time, "sleep"):
+        with patch("oplus_tool.ota_picker.command", side_effect=shell):
             with self.assertRaisesRegex(RuntimeError, "两个系统更新入口均未能唤起"):
-                push.trigger_downgrade("SERIAL", "/sdcard/task/firmware.zip", log=messages.append)
-        self.assertEqual(attempts, [push.ENTRY_ACTIVITY_NEW, push.ENTRY_ACTIVITY_LEGACY])
+                path = "/sdcard/OPPOFirmwareTool-" + "1" * 32 + "/firmware.zip"
+                push.trigger_downgrade("SERIAL", path, log=messages.append, expected_size=1024)
+        self.assertEqual(attempts, [push.MODERN_ENTRY, push.LEGACY_ENTRY])
         self.assertFalse(any("成功唤起" in message for message in messages))

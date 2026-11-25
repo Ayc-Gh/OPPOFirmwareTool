@@ -541,27 +541,25 @@ class Window(QMainWindow):
         serial=self.current_device.serial
         model=self.current_device.model
         custom_adb=self.tool_edits['adb'].text().strip()
-        confirm=QMessageBox.warning(self,'重要安全与数据清除提醒',
-            f'即将向已连接设备推送官方固件并唤起系统更新程序：\n\n'
+        confirm=QMessageBox.warning(self,'推送固件并打开手机预览',
+            f'即将向以下设备推送固件：\n\n'
             f'• 目标设备：{self.current_device.name} ({serial})\n'
             f'• 固件文件：{local_path.name} ({local_path.stat().st_size / 1024**3:.2f} GiB)\n'
-            '确认后先检查固件、设备型号和可用的目录摘要。通过检查后才会向手机写入。\n\n'
-            f'⚠️ 重要风险须知：\n'
-            f'1. 官方降级包在系统更新校验并安装时，会【清除手机全部用户数据（恢复出厂设置）】！\n'
-            f'2. 请务必在开始前确保手机重要数据（微信聊天、相册、联系人等）已完成外部备份！\n'
-            f'3. 请保持手机电量在 50% 以上，推送期间切勿拔除 USB 线缆。\n\n'
-            f'是否已完成重要数据备份，并确认继续开始推送？',
+            '工具会核对设备和固件，通过校验后将文件传到手机，并在系统更新器中自动选中该文件。'
+            '请保持手机解锁、USB 连接稳定，自动选包期间请勿操作手机。\n\n'
+            '工具会停在安装确认页。之后如果自行确认降级，手机可能恢复出厂设置，请先备份重要数据。\n\n'
+            '现在开始推送并预览吗？',
             QMessageBox.Yes|QMessageBox.No,QMessageBox.No)
         if confirm!=QMessageBox.Yes:return
         def work(c,s):
-            push.push_and_install(serial,local_path,custom_adb,c,s.progress.emit,s.log.emit,
-                                  expected_model=model,record=record)
-        def done(*args):
-            QMessageBox.information(self,'固件已推送',
-                '降级固件已成功推送到手机存储，并已唤起官方系统更新界面！\n\n'
-                '请在手机屏幕上点击“立即安装/确认更新”并按照提示完成降级。\n'
-                '（手机将自动验证安装包并重启执行回退）')
-            self.status.setText('降级包推送完成，已唤起手机系统更新。')
+            return push.push_and_install(serial,local_path,custom_adb,c,s.progress.emit,s.log.emit,
+                                         expected_model=model,record=record)
+        def done(preview):
+            if not preview:
+                self.show_error('未取得系统更新器的固件版本和大小，请查看手机及任务日志。')
+                return
+            self.status.setText(f'手机已显示固件预览：{preview}')
+            QMessageBox.information(self,'手机已显示固件预览',f'{preview}\n\n手机已停在安装确认页。')
         self.start_job(work,done,f'正在向 {self.current_device.name} 推送固件…')
     def export_catalog(self):
         opts=self.get_options();dest,_=QFileDialog.getSaveFileName(self,'导出固件目录',str(HOME/(safe_name(opts.model)+'_firmware.json')),'JSON (*.json)')

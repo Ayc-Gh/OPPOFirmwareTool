@@ -38,25 +38,12 @@ class PushTests(unittest.TestCase):
             self.assertEqual(space, 20000000 * 1024)
 
     def test_trigger_downgrade_new_and_legacy(self):
-        commands = []
-        def fake_command(args, custom='', timeout=15):
-            commands.append(args)
-            return ''
-
-        with patch('oplus_tool.push.command', side_effect=fake_command):
-            # 测试 ColorOS 11.3+
-            push.trigger_downgrade('SERIAL', '/sdcard/test.ozip', is_legacy=False)
-            cmd_texts = [' '.join(c) for c in commands]
-            self.assertTrue(any('OTA_ASSISTANT_PC_TOOL_RECEIVER' in t for t in cmd_texts))
-            self.assertTrue(any('local_file_uri' in t and '/sdcard/test.ozip' in t for t in cmd_texts))
-            self.assertTrue(any('forbid_check_update' in t for t in cmd_texts))
-            self.assertTrue(any('com.oplus.ota/com.oplus.otaui.activity.EntryActivity' in t for t in cmd_texts))
-
-            commands.clear()
-            # 测试 ColorOS 11.3 以下 (Legacy)
-            push.trigger_downgrade('SERIAL', '/sdcard/test.ozip', is_legacy=True)
-            cmd_texts_legacy = [' '.join(c) for c in commands]
-            self.assertTrue(any('com.oppo.ota/com.oppo.otaui.activity.EntryActivity' in t for t in cmd_texts_legacy))
+        path = "/sdcard/OPPOFirmwareTool-" + "a" * 32 + "/firmware.zip"
+        with patch.object(push.LocalUpdatePicker, "handoff", return_value="PHY110_1.2 | 8.00 GB") as handoff:
+            for is_legacy, entry in [(False, push.MODERN_ENTRY), (True, push.LEGACY_ENTRY)]:
+                result = push.trigger_downgrade("SERIAL", path, is_legacy=is_legacy, expected_size=8 * 1024**3)
+                self.assertEqual(result, "PHY110_1.2 | 8.00 GB")
+                handoff.assert_called_with(path, entry, 8 * 1024**3, "", None)
 
     def test_full_push_and_install_workflow(self):
         events = []
@@ -84,12 +71,27 @@ class PushTests(unittest.TestCase):
         with patch.object(push, 'command', side_effect=fake_command), \
              patch.object(push, 'uuid4', return_value=MagicMock(hex='df' * 16)), \
              patch.object(push, 'validate_push_source', return_value=digest), \
+             patch.object(push, 'trigger_downgrade', return_value='PHY110_1.2 | 1.00 KB') as preview, \
              patch('subprocess.Popen', side_effect=popen):
-            push.push_and_install('SERIAL', self.fake_pkg, log=lambda s: events.append('LOG:' + s))
+            detail = push.push_and_install('SERIAL', self.fake_pkg, log=lambda s: events.append('LOG:' + s))
 
         # 验证完整流程执行无报错
         self.assertTrue(any('LOG:' in e for e in events))
-        self.assertTrue(any('EntryActivity' in e for e in events))
+        self.assertEqual(detail, preview.return_value)
+        self.assertEqual(preview.call_args.kwargs['expected_size'], self.fake_pkg.stat().st_size)
+        self.assertIn('/firmware.ozip', preview.call_args.args[1])
+
+    def test_two_handoffs_cannot_drive_the_same_picker(self):
+        path = "/sdcard/OPPOFirmwareTool-" + "a" * 32 + "/firmware.zip"
+        def concurrent(*args):
+            with self.assertRaisesRegex(RuntimeError, "另一项任务"):
+                push.trigger_downgrade("SERIAL", path)
+            raise TimeoutError("timeout")
+        with patch.object(push.LocalUpdatePicker, "handoff", side_effect=concurrent):
+            with self.assertRaises(TimeoutError):
+                push.trigger_downgrade("SERIAL", path)
+        with patch.object(push.LocalUpdatePicker, "handoff", return_value="ready"):
+            self.assertEqual(push.trigger_downgrade("SERIAL", path), "ready")
 
     def test_inspect_package_safety(self):
         # 1. 小文件测试

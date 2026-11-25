@@ -183,6 +183,26 @@ class GuiTests(unittest.TestCase):
             self.win.push_selected_package()
             submit.assert_called_once_with(file,record)
 
+    def test_push_dialog_requires_the_version_and_size_returned_by_the_updater(self):
+        device = adb.Device('SERIAL', name='Test device', model='PHY110')
+        self.win.current_device = device
+        file = self.root / 'firmware.zip'
+        file.write_bytes(b'test entry point')
+        preview = 'PHY110_17.0.0.100 | 8.65 GB'
+        with patch.object(app.QMessageBox, 'warning', return_value=app.QMessageBox.Yes), \
+             patch.object(self.win, 'start_job') as start, \
+             patch.object(app.push, 'push_and_install', return_value=preview), \
+             patch.object(app.QMessageBox, 'information') as info, \
+             patch.object(self.win, 'show_error') as error:
+            self.win.do_push_package(file)
+            work, done, _ = start.call_args.args
+            done(None)
+            error.assert_called_once()
+            info.assert_not_called()
+            done(work(None, app.JobSignals()))
+            self.assertIn(preview, info.call_args.args[2])
+            self.assertIn(preview, self.win.status.text())
+
     def test_manual_query_to_online_images_is_scoped_to_model(self):
         archive,_=make_payload(self.root);info=payload.inspect(str(archive))
         p=Package('PKB110','cn','正式版','全量包','PKB110_16.0.0','PKB110_11.F','System','https://example.invalid/pkb110.zip',major='16')

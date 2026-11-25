@@ -121,7 +121,7 @@ def main():
     # Supply all installed Python dependency license texts without including caches.
     licenses=target/'licenses/python-packages';licenses.mkdir(parents=True,exist_ok=True)
     for dist in importlib.metadata.distributions():
-        if dist.metadata['Name'].lower() not in {'pyside6','pyside6-essentials','pyside6-addons','shiboken6','requests','cryptography','cffi','pycparser','urllib3','certifi','charset-normalizer','idna','pyinstaller','pyinstaller-hooks-contrib'}:continue
+        if dist.metadata['Name'].lower() not in {'pyside6','pyside6-essentials','pyside6-addons','shiboken6','requests','cryptography','asn1crypto','cffi','pycparser','urllib3','certifi','charset-normalizer','idna','pyinstaller','pyinstaller-hooks-contrib'}:continue
         for file in dist.files or []:
             if ('license' in str(file).lower() or 'copying' in file.name.lower() or 'notice' in file.name.lower()) and not str(file).endswith('.py'):
                 src=Path(dist.locate_file(file))
