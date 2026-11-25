@@ -6,7 +6,7 @@ Windows 桌面固件查询、下载与 OTA payload 镜像提取工具。界面�
 
 ![手动选择机型并自动填入查询参数](docs/previews/v1.0.3-manual.png)
 
-当前版本 **v1.0.7**。电脑推送后，工作台通过系统更新器自动选包，读回固件版本和大小后才提示交接成功。本版也支持预览与当前构建匹配、通过本机 OTA 公钥验签且不依赖旧分区的部分分区包。已在 Find X7 Ultra 上验证到“立即安装”确认页。独立社区项目，与 OPPO 官方无隶属关系。
+当前版本 **v1.0.8**。本版修复 Windows 便携包缺少 TLS 运行时文件、导致固件查询全部报连接失败的问题。离线自检会加载证书，发布验证还会从解压后的便携程序实际查询 Find X7 Ultra 固件。独立社区项目，与 OPPO 官方无隶属关系。
 
 ## 运行
 
@@ -71,6 +71,12 @@ python setup_tools.py
 python app.py
 python -m unittest discover -s tests -v
 python build.py
+```
+
+发布前在 Windows 上运行下面的联网回归。脚本从指定 ZIP 解压出便携程序，并由其中的 EXE 向国行 OTA 服务发起一次 Find X7 Ultra F 分支公开查询。无需连接手机。报告区分拿到固件记录和服务端明确返回本次无可见更新，连接或解析失败时脚本以非零状态退出。
+
+```powershell
+python scripts/test_portable_https.py release/OPPOFirmwareTool-Windows-x64.zip
 ```
 
 ADB 已附带。也可将 Android 官方 platform-tools 的 `adb.exe`、`AdbWinApi.dll`、`AdbWinUsbApi.dll` 放到 `tools`，或在界面指定路径。`setup_tools.py` 下载锁定版本引擎，并核验 ssut 发布方提供的 checksum；xishang 发布没有独立 checksum，记录通过 HTTPS 获取文件的本地 SHA256。请查看 `tools/versions.json`。

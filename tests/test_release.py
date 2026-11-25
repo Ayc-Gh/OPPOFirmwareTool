@@ -35,7 +35,8 @@ class ReleaseTests(unittest.TestCase):
         hashes = {p.name: hashlib.sha256(p.read_bytes()).hexdigest()
                   for p in (self.root / 'tools/apk').iterdir()}
         self.report = {'ok': True, 'version': __version__, 'gui_version_matches': True,
-                       'opex_patch_support': True, 'push_controls_present': True, 'bundled_apk_sha256': hashes}
+                       'opex_patch_support': True, 'push_controls_present': True,
+                       'tls_context_verified': True, 'bundled_apk_sha256': hashes}
         (self.root / build.REPORT).write_text(json.dumps(self.report), encoding='utf-8')
 
     def package(self, check, executable_code='release_value = 1\n'):
@@ -64,6 +65,63 @@ class ReleaseTests(unittest.TestCase):
         (self.root / 'tools/apk/OTA_113.apk').unlink()
         with self.assertRaises(FileNotFoundError):
             self.package(lambda *a, **kw: self.fail('缺失 APK 时不应开始打包'))
+
+    def test_reused_portable_ships_build_interpreters_original_tls_policy(self):
+        runtime_dir = self.root / '.build'
+        runtime_dir.mkdir()
+        policy = runtime_dir / build.SSL_POLICY
+        policy.write_bytes(b'original runtime policy\r\n')
+        member = '_internal/' + policy.name
+        target_file = self.output / 'OPPOFirmwareTool' / member
+        target_file.parent.mkdir()
+        target_file.write_bytes(b'stale runtime policy')
+        def check(args, **kwargs):
+            self.assertEqual(target_file.read_bytes(), policy.read_bytes())
+            Path(args[-1]).write_text(json.dumps(self.report), encoding='utf-8')
+        with patch.object(build, 'ssl') as runtime:
+            runtime.__file__ = str(runtime_dir / 'ssl.py')
+            self.package(check)
+        with zipfile.ZipFile(self.output / 'OPPOFirmwareTool-Windows-x64.zip') as portable:
+            self.assertEqual(portable.read(member), policy.read_bytes())
+        with zipfile.ZipFile(self.output / 'OPPOFirmwareTool-Source.zip') as source:
+            self.assertNotIn(member, source.namelist())
+
+    def test_standard_interpreter_build_needs_no_runtime_specific_pem(self):
+        target = self.output / 'OPPOFirmwareTool'
+        with patch.object(build, 'ssl') as runtime:
+            runtime.__file__ = str(self.root / 'ssl.py')
+            self.assertEqual(build.copy_ssl_runtime_data(target), {})
+            self.assertFalse((target / '_internal' / build.SSL_POLICY).exists())
+            # A distribution that needs the missing file fails at context creation.
+            runtime.SSLContext.side_effect = FileNotFoundError(build.SSL_POLICY)
+            with self.assertRaises(FileNotFoundError):
+                build.copy_ssl_runtime_data(target)
+
+    def test_portable_validation_rejects_missing_or_changed_runtime_policy(self):
+        path = self.output / 'candidate.zip'
+        member = '_internal/' + build.SSL_POLICY
+        expected = {member: hashlib.sha256(b'original runtime policy').hexdigest()}
+        for data in (None, b'different policy'):
+            with self.subTest(data=data):
+                with zipfile.ZipFile(path, 'w') as archive:
+                    archive.writestr(build.REPORT, json.dumps(self.report))
+                    for name in self.report['bundled_apk_sha256']:
+                        archive.write(self.root / 'tools' / 'apk' / name, 'tools/apk/' + name)
+                    if data is not None:
+                        archive.writestr(member, data)
+                with self.assertRaisesRegex(RuntimeError, build.SSL_POLICY):
+                    build.verify_archive(path, self.report, expected)
+
+    def test_packaging_requires_positive_frozen_tls_check(self):
+        for flag in (None, False):
+            with self.subTest(flag=flag):
+                report = self.report.copy()
+                if flag is None:
+                    report.pop('tls_context_verified')
+                else:
+                    report['tls_context_verified'] = flag
+                with self.assertRaisesRegex(RuntimeError, 'TLS'):
+                    build.validate_report(report, self.report['bundled_apk_sha256'])
 
     def test_stale_success_cannot_replace_missing_report(self):
         with self.assertRaises(FileNotFoundError):

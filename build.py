@@ -8,6 +8,7 @@ import marshal
 import os
 import re
 import shutil
+import ssl
 import subprocess
 import sys
 import tempfile
@@ -21,6 +22,7 @@ TOOL_FILES = (
     'tools/apk/OTA_17.apk', 'tools/apk/OTA_113.apk',
 )
 REPORT = 'docs/packaged-check.json'
+SSL_POLICY = 'codex-rejected-cas.pem'
 
 def zip_dir(source,dest,include=None):
     with zipfile.ZipFile(dest,'w',zipfile.ZIP_DEFLATED,compresslevel=6) as z:
@@ -37,8 +39,8 @@ def include_source(path, release_dir):
 def validate_report(report, expected_apks):
     if (report.get('ok') is not True or report.get('version') != __version__ or
             report.get('bundled_apk_sha256') != expected_apks or
-            not all(report.get(name) is True for name in ('gui_version_matches','opex_patch_support','push_controls_present'))):
-        raise RuntimeError(f'打包程序自检失败：需要 v{__version__}、可用的推送与补丁入口及匹配的两个 APK')
+            not all(report.get(name) is True for name in ('gui_version_matches','opex_patch_support','push_controls_present','tls_context_verified'))):
+        raise RuntimeError(f'打包程序自检失败：需要 v{__version__}、可用的 TLS 上下文、推送与补丁入口及匹配的两个 APK')
 
 def frozen_modules(executable):
     from PyInstaller.archive.readers import CArchiveReader
@@ -66,14 +68,34 @@ def stream_sha256(stream):
         digest.update(block)
     return digest.hexdigest()
 
-def verify_archive(path, report):
+def copy_ssl_runtime_data(target):
+    # Some Python builds load this policy relative to ssl.py on every TLS connection.
+    # Constructing a context also detects a broken build interpreter before packaging.
+    ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    source = Path(ssl.__file__).with_name(SSL_POLICY)
+    member = '_internal/' + SSL_POLICY
+    destination = target / member
+    if not source.exists():
+        destination.unlink(missing_ok=True)
+        return {}
+    data = source.read_bytes()
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_bytes(data)
+    return {member: hashlib.sha256(data).hexdigest()}
+
+def verify_archive(path, report, runtime_digests=None):
     with zipfile.ZipFile(path) as archive:
         if json.loads(archive.read(REPORT)) != report:
             raise RuntimeError(f'{path.name} 中的自检报告与本次构建不一致')
-        for name, digest in report['bundled_apk_sha256'].items():
-            with archive.open('tools/apk/' + name) as apk:
-                if stream_sha256(apk) != digest:
-                    raise RuntimeError(f'{path.name} 中的 {name} 与实际验证的伴生 APK 不一致')
+        expected = {'tools/apk/' + name: digest for name, digest in report['bundled_apk_sha256'].items()}
+        expected.update(runtime_digests or {})
+        names = archive.namelist()
+        for name, digest in expected.items():
+            if names.count(name) != 1:
+                raise RuntimeError(f'{path.name} 中缺少或重复收录了 {name}')
+            with archive.open(name) as data:
+                if stream_sha256(data) != digest:
+                    raise RuntimeError(f'{path.name} 中的 {name} 与构建时的 SHA256 不一致')
 
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--reuse-build',action='store_true')
@@ -111,6 +133,7 @@ def main():
     # Clean only diagnostic files created by this project's release validation.
     for path in (target/'DebugConsole.exe',target/'_internal/icuuc.dll.disabled',target/'_internal/icudt78.dll.disabled'):
         path.unlink(missing_ok=True)
+    runtime_digests = copy_ssl_runtime_data(target)
     for name in TOOL_FILES:
         dest = target / name
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -149,7 +172,7 @@ def main():
         zip_dir(target, portable)
         hashes = []
         for package in (source, portable):
-            verify_archive(package, report)
+            verify_archive(package, report, runtime_digests if package == portable else None)
             with package.open('rb') as archive:
                 hashes.append(stream_sha256(archive) + '  ' + package.name)
         sums = staging/'SHA256SUMS.txt'

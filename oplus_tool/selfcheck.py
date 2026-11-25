@@ -1,11 +1,13 @@
 """Offline extraction and bundled-runtime check used for release validation."""
 import hashlib
 import json
+import ssl
 import struct
 import tempfile
 import threading
 import zipfile
 from pathlib import Path
+from requests.certs import where as requests_ca_bundle
 from PySide6.QtWidgets import QLabel
 from . import adb, payload, engine, models, push, tracker, __version__
 from .common import HOME, atomic_json, file_hash
@@ -24,6 +26,10 @@ def check_bundled_apks():
     return hashes
 
 def run(window,report):
+    # Construct the same kind of verified client context needed for an OTA request.
+    # Missing files required by the bundled ssl module must fail the offline check.
+    tls = ssl.create_default_context(cafile=requests_ca_bundle())
+    tls_verified = tls.check_hostname and tls.verify_mode == ssl.CERT_REQUIRED and tls.cert_store_stats()['x509_ca'] > 0
     # Test a deterministic single-partition image through the actual executables.
     data=b'OPPOFirmwareTool release self-check'.ljust(4096,b'\0');digest=hashlib.sha256(data).digest()
     pf=payload.pack_fields
@@ -62,9 +68,9 @@ def run(window,report):
     model_profiles=models.load_profiles()
     manual_selection = any(p.model=='PHY110' and 'OP565FL1' in p.codenames for p in model_profiles)
     push_controls = bool(window.push_local_button.text() and window.push_selected_button.text())
-    checks = [all(h==digest.hex() for h in results.values()), version_matches, manual_selection,
+    checks = [all(h==digest.hex() for h in results.values()), version_matches, manual_selection, tls_verified,
               patch_support, push_controls, adb_version.startswith('Android Debug Bridge version')]
-    atomic_json(Path(report),{'ok':all(checks),'version':__version__,
+    atomic_json(Path(report),{'ok':all(checks),'version':__version__,'tls_context_verified':tls_verified,
         'bundled_baseline_profiles':len(profiles),
         'bundled_model_profiles':len(model_profiles),'manual_model_selection':manual_selection,
         'gui_version_matches':version_matches,'opex_patch_support':patch_support,

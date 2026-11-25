@@ -1,6 +1,7 @@
 {
   "ok": true,
-  "version": "1.0.7",
+  "version": "1.0.8",
+  "tls_context_verified": true,
   "bundled_baseline_profiles": 2,
   "bundled_model_profiles": 1185,
   "manual_model_selection": true,

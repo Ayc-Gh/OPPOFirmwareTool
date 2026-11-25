@@ -676,7 +676,15 @@ class Window(QMainWindow):
         self.save_settings();event.accept()
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('--no-auto-query',action='store_true');parser.add_argument('--self-check',metavar='REPORT_JSON');args=parser.parse_args()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--no-auto-query', action='store_true')
+    checks = parser.add_mutually_exclusive_group()
+    checks.add_argument('--self-check', metavar='REPORT_JSON')
+    checks.add_argument('--check-ota-https', metavar='REPORT_JSON')
+    args = parser.parse_args()
+    if args.check_ota_https:
+        from oplus_tool.query_check import check_public_query
+        sys.exit(0 if check_public_query(Path(args.check_ota_https)) else 1)
     if args.self_check:os.environ['QT_QPA_PLATFORM']='offscreen'
     app=QApplication(sys.argv[:1]);app.setApplicationName('OPPO 固件工作台');app.setStyle('Fusion');app.setStyleSheet(STYLE)
     window=Window(args.no_auto_query or bool(args.self_check), scan_on_start=not args.self_check)
