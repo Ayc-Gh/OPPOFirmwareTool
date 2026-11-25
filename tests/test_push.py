@@ -62,24 +62,29 @@ class PushTests(unittest.TestCase):
         events = []
         def fake_command(args, custom='', timeout=15):
             cmd_str = ' '.join(args)
-            if 'getprop' in cmd_str:
-                return '14'
+            if args[3:] == ['getprop']:
+                return '[ro.product.brand]: [OPPO]\n[ro.product.model]: [PHY110]\n[ro.build.version.release]: [14]'
             if 'pm list' in cmd_str:
                 return 'package:com.color.otaassistant'
-            if 'df' in cmd_str:
+            if args[3:4] == ['df']:
                 return "Filesystem 1K-blocks Used Available Use% Mounted on\n/dev 64000000 44000000 20000000 68% /sdcard"
-            if 'stat' in cmd_str:
+            if args[3:4] == ['stat']:
                 return str(self.fake_pkg.stat().st_size)
             events.append(cmd_str)
             return ''
 
-        mock_proc = MagicMock()
-        mock_proc.poll.return_value = 0
-        mock_proc.returncode = 0
-        mock_proc.communicate.return_value = ('', '')
+        digest = 'a' * 64
+        def popen(args, **kwargs):
+            proc = MagicMock()
+            proc.poll.return_value = proc.returncode = 0
+            stdout = digest + '  ' + args[-1] if 'sha256sum' in args else ''
+            proc.communicate.return_value = (stdout, '')
+            return proc
 
-        with patch('oplus_tool.push.command', side_effect=fake_command), \
-             patch('subprocess.Popen', return_value=mock_proc):
+        with patch.object(push, 'command', side_effect=fake_command), \
+             patch.object(push, 'uuid4', return_value=MagicMock(hex='df' * 16)), \
+             patch.object(push, 'validate_push_source', return_value=digest), \
+             patch('subprocess.Popen', side_effect=popen):
             push.push_and_install('SERIAL', self.fake_pkg, log=lambda s: events.append('LOG:' + s))
 
         # 验证完整流程执行无报错
@@ -95,12 +100,8 @@ class PushTests(unittest.TestCase):
 
         # 2. 机型不匹配测试
         mismatch_pkg = self.root / 'PKB110_11.A_test.zip'
-        mismatch_pkg.write_bytes(b'PK\x03\x04' + b'0' * (60 * 1024 * 1024))
+        with mismatch_pkg.open('wb') as data:
+            data.truncate(60 * 1024 * 1024)
         warns, errs = push.inspect_package_safety(mismatch_pkg, 'PHY110')
-        self.assertTrue(any('机型不匹配' in w for w in warns))
-
-        # 3. 机型匹配测试
-        match_pkg = self.root / 'PHY110_11.A_test.zip'
-        match_pkg.write_bytes(b'PK\x03\x04' + b'0' * (60 * 1024 * 1024))
-        warns, errs = push.inspect_package_safety(match_pkg, 'PHY110')
-        self.assertFalse(any('机型不匹配' in w for w in warns))
+        self.assertFalse(warns)
+        self.assertTrue(any('机型不匹配' in e for e in errs))

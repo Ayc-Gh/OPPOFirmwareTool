@@ -68,6 +68,7 @@ class Partition:
     old_sha256:str=''
     operations:list=field(default_factory=list,repr=False)
     raw:bytes=field(default=b'',repr=False)
+    has_old_info:bool=False
     @property
     def needs_source(self):return any(op['type'] in SOURCE_OPS for op in self.operations)
     @property
@@ -86,6 +87,8 @@ class PayloadInfo:
     payload_size:int=0
     remote:bool=False
     compressed:bool=False
+    minor_version:int=0
+    partial_update:bool=False
     @property
     def is_delta(self):return any(p.needs_source for p in self.partitions)
 
@@ -136,7 +139,8 @@ def inspect(source,cancel=None):
             manifest=read_exact(stream,manifest_len)
             data_offset=24+manifest_len+sig_len
             parts=[]
-            for n,w,raw in fields(manifest):
+            manifest_fields=fields(manifest)
+            for n,w,raw in manifest_fields:
                 if n!=13:continue
                 pf=fields(raw);name=first(pf,1,b'').decode('utf-8')
                 import re
@@ -149,10 +153,12 @@ def inspect(source,cancel=None):
                     off,length=first(of,2,0),first(of,3,0)
                     if data_offset+off+length>payload_size:raise ValueError('操作数据超出 payload 边界')
                     ops.append({'type':t,'offset':off,'length':length,'raw':value})
-                parts.append(Partition(name,first(new,1,0),first(new,2,b'').hex(),first(old,1,0),first(old,2,b'').hex(),ops,raw))
+                parts.append(Partition(name,first(new,1,0),first(new,2,b'').hex(),first(old,1,0),first(old,2,b'').hex(),ops,raw,
+                                       has_old_info=first(pf,6) is not None))
             if not parts:raise ValueError('payload 没有分区列表')
             if len({p.name for p in parts})!=len(parts):raise ValueError('payload 分区名重复')
-            return PayloadInfo(source,parts,metadata,manifest,data_offset,offset,payload_size,remote,compressed)
+            return PayloadInfo(source,parts,metadata,manifest,data_offset,offset,payload_size,remote,compressed,
+                               minor_version=first(manifest_fields,12,0),partial_update=bool(first(manifest_fields,16,0)))
         finally:
             if stream is not reader:stream.close()
             if archive:archive.close()

@@ -8,7 +8,7 @@ import requests
 from vendor.oplus_tracker import tomboy_pro as upstream
 from vendor.oplus_tracker import downgrade_query
 from .adb import Device
-from .catalog import Package, date_from_version, major_from_version
+from .catalog import MANIFEST_EVIDENCE, Package, date_from_version, effective_nvid, major_from_version
 from .common import check_cancel, valid_url
 
 REGIONS = [r for r in upstream.REGION_CONFIG if r != 'sg_host']
@@ -81,7 +81,7 @@ def build_queries(options: QueryOptions, baselines=()):
     seen_profiles=set()
     for profile in profiles:
         if profile.get('model')!=options.model or profile.get('region')!=options.region:continue
-        if profile.get('nvid') and options.nvid and profile['nvid']!=options.nvid:continue
+        if effective_nvid(options.region, profile.get('nvid')) != effective_nvid(options.region, options.nvid):continue
         ota=profile.get('ota','');components=profile.get('components','')
         if not ota.startswith(options.model+'_') or not components:continue
         canonical=tuple(sorted((p['componentName'],p['componentVersion']) for p in upstream.parse_components(components)))
@@ -218,11 +218,17 @@ def query_all(options, cancel, progress, log, emit, cached=(), baselines=()):
     jobs = build_queries(options,baselines)
     # Previously discovered versions seed subsequent queries, making history grow
     # without claiming the update API is a complete historical index.
-    seen = {(c, cfg.ota_version, cfg.mode, cfg.components_input) for c,cfg in jobs}
+    def request_key(cfg):
+        fields = asdict(cfg)
+        fields['nvid'] = effective_nvid(cfg.region, cfg.nvid)
+        return tuple(fields.items())
+
+    seen = {request_key(cfg) for _, cfg in jobs}
     for p in cached:
-        if p.recipe and p.channel != '降级包':
+        if (not p.recipe.get('downgrade') and p.recipe.get('region') == options.region
+                and p.matches_target(options.model, options.region, options.nvid)):
             cfg = upstream.QueryConfig(**(p.recipe | {'guid':'0'*64 if p.public_query else options.guid or '0'*64}))
-            key=(p.channel,cfg.ota_version,cfg.mode,cfg.components_input)
+            key=request_key(cfg)
             if key not in seen and len(jobs)<100:
                 jobs.append((p.channel,cfg)); seen.add(key)
     total = len(jobs) + (1 if options.duid and options.region in ('cn','cn_cmcc') else 0)
@@ -248,6 +254,8 @@ def query_all(options, cancel, progress, log, emit, cached=(), baselines=()):
             packages=normalize_result(result,cfg,channel,options)
             for package in packages:
                 check_cancel(cancel)
+                if package.kind == '补丁包':
+                    continue
                 key=package.md5 or urlsplit(package.url).path
                 if key not in inspected:
                     try:
@@ -298,8 +306,10 @@ def query_all(options, cancel, progress, log, emit, cached=(), baselines=()):
     return count
 
 def refine_package(package, info):
+    if package.kind == '补丁包':
+        return package
     package.kind='增量包' if info.is_delta else '全量包'
-    package.evidence='已读取 payload manifest 核验'
+    package.evidence=MANIFEST_EVIDENCE
     if info.is_delta:
         manifest_base=info.metadata.get('pre-build-incremental','')
         if package.base_version and manifest_base and manifest_base not in package.base_version:
@@ -330,10 +340,13 @@ def normalize_downgrade(result, options):
         records.append(Package(options.model,options.region,'降级包','全量包',version,ota,'System',p['downloadUrl'],p['downloadUrl'],
                       integer(p.get('fileSize')),str(pub or date_from_version(ota)),
                       '服务器发布时间' if pub else '固件构建时间（非推送日期）',major_from_version('_'+version),
-                      md5=p.get('fileMd5',''),recipe={'downgrade':True},evidence='官方降级接口'))
+                      md5=p.get('fileMd5',''),recipe={'downgrade':True, 'nvid':options.nvid},evidence='官方降级接口'))
     return records
 
 def refresh_package(package, options):
+    if (not package.matches_target(options.model, options.region, options.nvid)
+            or package.recipe.get('region', options.region) != options.region):
+        raise ValueError('当前机型、地区或 NV 与固件记录不匹配，请切回原查询目标。')
     if package.recipe.get('downgrade'):
         if not options.duid:
             raise ValueError('刷新降级包需要在参数中补填真实 DUID。')
@@ -345,8 +358,15 @@ def refresh_package(package, options):
         if not result.success:
             raise RuntimeError(f'刷新失败，接口 {result.response_code}：{result.error}')
         records=normalize_result(result,cfg,package.channel,options)
-    match=next((p for p in records if p.ota==package.ota and p.component==package.component and
-                (not package.md5 or p.md5==package.md5)),None)
+    matches = [p for p in records if p.ota == package.ota and p.component == package.component]
+    # OPEX and system records may share a target OTA. Correct an old class only
+    # when the server identifies the same artifact as a patch.
+    patch_record = next((p for p in matches if p.kind == '补丁包' and p.same_artifact(package)), None)
+    if patch_record:
+        return patch_record
+    match = next((p for p in matches if p.kind != '补丁包' and package.kind != '补丁包'
+                  and (not package.md5 or p.md5 == package.md5)
+                  and (not package.sha256 or p.sha256 == package.sha256)), None)
     if not match:
         raise RuntimeError('该版本已不在接口当前返回结果中，无法生成新的签名链接。历史记录已保留。')
     # Keep payload-confirmed classification and baseline identity stable.

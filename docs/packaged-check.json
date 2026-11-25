@@ -1,11 +1,17 @@
 {
   "ok": true,
-  "version": "1.0.5",
+  "version": "1.0.6",
   "bundled_baseline_profiles": 2,
   "bundled_model_profiles": 1185,
   "manual_model_selection": true,
-  "firmware_push": true,
+  "gui_version_matches": true,
   "opex_patch_support": true,
+  "push_controls_present": true,
+  "bundled_apk_sha256": {
+    "OTA_17.apk": "560b4e9a97daa534ab51e2b9ae58c12f1244d8b1850bfa26e324705497efc1d0",
+    "OTA_113.apk": "de39afc38536ec855ef9eb5863bec45f51a5db51d2c804cc7e0ba5cbefe1d046"
+  },
+  "adb_version": "Android Debug Bridge version 1.0.41",
   "root_policy": "manual-button-only",
   "root_button": "尝试 root 获取 GUID 和 DUID",
   "crypto": "AES-CTR and RSA-OAEP verified",
@@ -17,16 +23,5 @@
   "engines": {
     "ssut": "c148da9a3a822081db2c708f3991f53b964866b547eca69779a480cb07afd7f1",
     "xishang": "c148da9a3a822081db2c708f3991f53b964866b547eca69779a480cb07afd7f1"
-  },
-  "devices": [
-    {
-      "name": "OPPO Find X7 Ultra",
-      "model": "PHY110",
-      "slot": "a",
-      "region": "cn"
-    }
-  ],
-  "adb_notes": [
-    "emulator-5554: offline（请在手机授权 USB 调试或重新连接）"
-  ]
+  }
 }

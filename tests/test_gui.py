@@ -36,6 +36,64 @@ class GuiTests(unittest.TestCase):
         signals=app.JobSignals();signals.progress.connect(self.win.set_progress)
         signals.progress.emit(5*1024**3,10*1024**3,'大型固件下载')
         self.assertEqual(self.win.progress.value(),500)
+    def test_nv_change_switches_selected_record_and_clears_online_source(self):
+        from dataclasses import replace
+        first = Package('PHY110', 'cn', '正式版', '全量包', '17.0', 'OTA', 'System',
+                        'https://example.invalid/current.zip', recipe={'nvid': '10010111'})
+        second = replace(first, url='https://example.invalid/other.zip', recipe={'nvid': '10011000'})
+        self.win.catalog.put([first, second])
+        self.win.params['nvid'].setText('10010111')
+        self.win.load_catalog()
+        self.assertEqual(self.win.selected_package.id, first.id)
+        self.win.source_mode.setCurrentIndex(1)
+        self.win.online_combo.setCurrentIndex(self.win.online_combo.findData(first.id))
+        self.win.source_edit.setText(first.url)
+        self.win.params['nvid'].setText('10011000')
+        self.assertEqual([p.id for p in self.win.packages], [second.id])
+        self.assertEqual(self.win.selected_package.id, second.id)
+        self.assertEqual(self.win.url_edit.text(), second.url)
+        self.assertEqual(self.win.online_combo.findData(first.id), -1)
+        self.assertEqual(self.win.source_edit.text(), '')
+
+    def test_reclassified_opex_invalidates_loaded_and_inflight_online_images(self):
+        from dataclasses import replace
+        from oplus_tool.catalog import MANIFEST_EVIDENCE
+        old = Package('PHY110', 'cn', '正式版', '全量包', '17.0Patch01', 'OTA', 'OPEX',
+                      'https://old.invalid/a.zip', sha256='a' * 64, evidence=MANIFEST_EVIDENCE)
+        corrected = replace(old, kind='补丁包', base_version='适用底包: 17.0', evidence='OPEX',
+                            url='https://new.invalid/b.zip')
+        archive, _ = make_payload(self.root)
+        info = payload.inspect(str(archive))
+        self.win.catalog.put([old])
+        self.win.load_catalog()
+        with patch.object(self.win, 'start_job') as start:
+            self.win.use_online_package()
+            start.call_args.args[1](info)
+            self.assertEqual(self.win.image_table.rowCount(), 3)
+            self.win.inspect_source()
+            pending = start.call_args.args[1]
+            self.win.catalog.put([corrected])
+            self.win.load_catalog()
+            self.assertEqual(self.win.source_edit.text(), '')
+            self.assertIsNone(self.win.info)
+            self.assertEqual(self.win.image_table.rowCount(), 0)
+            self.assertEqual(self.win.online_combo.count(), 1)
+            self.win.source_edit.setText(old.url)
+            pending(info)
+            self.assertIsNone(self.win.info)
+            self.assertEqual(self.win.image_table.rowCount(), 0)
+            start.reset_mock()
+            self.win.extract_images()
+            start.assert_not_called()
+        for source in (str(archive), 'https://independent.invalid/firmware.zip'):
+            with self.subTest(source=source):
+                self.win.source_mode.setCurrentIndex(int(source.startswith('https:')))
+                self.win.source_edit.setText(source)
+                self.win.info = info
+                self.win.populate_images()
+                self.win.load_catalog()
+                self.assertEqual(self.win.source_edit.text(), source)
+                self.assertIs(self.win.info, info)
     def wait_job(self):
         deadline=time.monotonic()+3
         while self.win.job and time.monotonic()<deadline:
@@ -113,6 +171,18 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(self.win.params['model'].text(),'');self.assertEqual(self.win.params['nvid'].text(),'')
         self.win.params['model'].setText('TEST123');self.win.params['region'].setCurrentText('cn');self.win.region_changed()
         self.win.get_options().validate()
+    def test_push_file_picker_keeps_selected_downgrade_record(self):
+        record = Package('PHY110','cn','降级包','全量包','16','OTA','System','',
+                         recipe={'downgrade':True},md5='a'*32)
+        self.win.selected_package = record
+        self.win.settings['download_dir'] = str(self.root)
+        file = self.root/'renamed.ozip'
+        with patch.object(app.QMessageBox,'question',return_value=app.QMessageBox.Yes), \
+             patch.object(app.QFileDialog,'getOpenFileName',return_value=(str(file),'')), \
+             patch.object(self.win,'do_push_package') as submit:
+            self.win.push_selected_package()
+            submit.assert_called_once_with(file,record)
+
     def test_manual_query_to_online_images_is_scoped_to_model(self):
         archive,_=make_payload(self.root);info=payload.inspect(str(archive))
         p=Package('PKB110','cn','正式版','全量包','PKB110_16.0.0','PKB110_11.F','System','https://example.invalid/pkb110.zip',major='16')

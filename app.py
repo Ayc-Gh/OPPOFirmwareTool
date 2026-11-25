@@ -97,10 +97,11 @@ def table(headers):
     return t
 
 class Window(QMainWindow):
-    def __init__(self,no_auto=False):
+    def __init__(self,no_auto=False, *, scan_on_start=True):
         super().__init__();self.setWindowTitle('OPPO 固件工作台');self.resize(1380,960);self.setMinimumSize(1060,740)
         self.catalog=Catalog();self.devices=[];self.packages=[];self.visible_packages=[];self.online_packages=[]
         self.selected_package=None;self.info=None;self.current_device=None;self.job=None;self.scan_job=None;self.closing=False
+        self.source_package=None;self.source_generation=0
         self.root_identifiers={}
         self.model_profiles=models.load_profiles();self.catalog_scope=None
         self.pool=QThreadPool(self);self.pool.setMaxThreadCount(3);self.busy_buttons=[];self.params={}
@@ -148,11 +149,13 @@ class Window(QMainWindow):
         self.catalog_timer.timeout.connect(self.load_catalog)
         self.params['model'].textChanged.connect(lambda:self.catalog_timer.start())
         self.params['region'].currentIndexChanged.connect(lambda:self.catalog_timer.start())
+        self.params['nvid'].textChanged.connect(self.load_catalog)
         self.params['region'].activated.connect(self.region_changed)
         self.target_mode.currentIndexChanged.connect(self.target_mode_changed)
         self.model_brand.currentIndexChanged.connect(self.filter_models);self.model_search.textChanged.connect(self.filter_models)
         self.model_combo.activated.connect(self.apply_manual_model);self.filter_models()
-        QTimer.singleShot(200,self.scan_devices)
+        if scan_on_start:
+            QTimer.singleShot(200,self.scan_devices)
 
     def build_devices(self):
         area=QScrollArea();area.setWidgetResizable(True);page=QWidget();area.setWidget(page);lay=QVBoxLayout(page)
@@ -434,13 +437,20 @@ class Window(QMainWindow):
         else:self.params['nvid'].clear()
         if self.target_mode.currentIndex()==1:self.device_labels['region'].setText((region or '请选择固件地区')+' / 版本以查询结果为准')
     def load_catalog(self):
-        opts=self.get_options();scope=(opts.model,opts.region)
+        opts=self.get_options();scope=(opts.model,opts.region,tracker.effective_nvid(opts.region,opts.nvid))
         if scope!=self.catalog_scope:
             self.catalog_scope=scope
             if self.source_mode.currentIndex()==1:
                 self.source_edit.clear();self.invalidate_info()
-                self.extract_hint.setText('查询机型或地区已更换，请重新选择在线固件并读取镜像。')
-        self.packages=self.catalog.list(opts.model,opts.region)
+                self.extract_hint.setText('查询机型、地区或 NV 已更换，请重新选择在线固件并读取镜像。')
+        source = self.source_edit.text().strip().strip('"')
+        prior = self.package_for_source(source)
+        self.packages=self.catalog.list(*scope)
+        if source.startswith(('http://', 'https://')) and any(
+                p.kind == '补丁包' and (p.same_artifact(prior) if prior else source in (p.url, p.original_url))
+                for p in self.packages):
+            self.source_edit.clear()
+            self.extract_hint.setText('当前来源已由服务器确认为 OPEX 补丁，请在固件列表中下载。')
         self.populate_filters();self.filter_packages();self.filter_online()
     def populate_filters(self):
         majors=sorted({p.major for p in self.packages if p.major!='未知'},key=lambda x:int(x) if x.isdigit() else 0,reverse=True)
@@ -475,8 +485,9 @@ class Window(QMainWindow):
             if p.id==selected_id:select=r
         self.package_table.verticalHeader().setDefaultSectionSize(54);self.package_table.blockSignals(False)
         self.count.setText(f'显示 {len(self.visible_packages)} / {len(self.packages)} 条记录 · 日期最新在前 · 同版全量/增量分别保留 · 构建日期会在详情中标注')
-        if select>=0:self.package_table.selectRow(select)
-        elif self.visible_packages:self.package_table.selectRow(0)
+        if self.visible_packages:
+            self.package_table.selectRow(max(0,select))
+            self.select_package()
         else:self.selected_package=None;self.url_edit.clear();self.package_detail.setText('此条件下暂无固件记录。更改筛选或刷新查询。')
     def select_package(self):
         r=self.package_table.currentRow()
@@ -503,40 +514,38 @@ class Window(QMainWindow):
             return download(url,dest,c,s.progress.emit,p.size,p.md5,p.sha256)
         self.start_job(work,lambda path:self.toast('已下载到 '+str(path)),'正在准备下载；支持断点续传…')
     def push_local_package(self):
+        self.choose_push_file()
+    def choose_push_file(self,record=None):
         dest,_=QFileDialog.getOpenFileName(self,'选择官方固件包（.ozip / .zip）',str(self.settings.get('download_dir',str(HOME/'downloads'))),'官方固件 (*.ozip *.zip);;所有文件 (*)')
         if not dest:return
-        self.do_push_package(Path(dest))
+        self.do_push_package(Path(dest),record)
     def push_selected_package(self):
         if not self.selected_package:
             self.toast('请先在上方列表中选择一个固件包。');return
         p=self.selected_package
-        if p.kind == '补丁包':
-            QMessageBox.warning(self, '无法作为系统固件推送', '该项为 OPEX 模块补丁包，非整机系统固件，不能通过官方整机降级通道进行推送。\n\n请直接点击【下载完整固件】或【复制链接】下载使用。')
+        if p.kind in ('补丁包','增量包'):
+            QMessageBox.warning(self, '无法作为系统固件推送', f'当前记录为{p.kind}，降级需要与设备匹配的完整系统包。')
             return
         name=safe_name(p.ota+'_'+p.component+'_'+p.kind)+'.zip'
         expected=Path(self.settings.get('download_dir',str(HOME/'downloads')))/name
         if expected.is_file():
-            self.do_push_package(expected)
+            self.do_push_package(expected,p)
             return
         reply=QMessageBox.question(self,'固件尚未下载',f'默认下载目录中尚未找到此包文件：\n{name}\n\n是否手动选择本地已下载好的固件文件？',QMessageBox.Yes|QMessageBox.No)
         if reply==QMessageBox.Yes:
-            self.push_local_package()
-    def do_push_package(self,local_path:Path):
+            self.choose_push_file(p)
+    def do_push_package(self,local_path:Path,record=None):
         if not self.current_device:
             self.show_error('未检测到已连接的 OPlus 设备。\n\n请先启用手机 USB 调试并连接电脑授权，再执行固件推送。')
             return
-        warnings, errors = push.inspect_package_safety(local_path, self.current_device.model)
-        if errors:
-            QMessageBox.critical(self, '固件包安全拦截', '检测到固件包存在严重问题，无法进行推送：\n\n' + '\n\n'.join(errors))
-            return
         serial=self.current_device.serial
+        model=self.current_device.model
         custom_adb=self.tool_edits['adb'].text().strip()
-        warn_text = ('\n\n⚠️ 发现潜在问题：\n' + '\n'.join(warnings) + '\n') if warnings else ''
         confirm=QMessageBox.warning(self,'重要安全与数据清除提醒',
             f'即将向已连接设备推送官方固件并唤起系统更新程序：\n\n'
             f'• 目标设备：{self.current_device.name} ({serial})\n'
             f'• 固件文件：{local_path.name} ({local_path.stat().st_size / 1024**3:.2f} GiB)\n'
-            f'{warn_text}\n'
+            '确认后先检查固件、设备型号和可用的目录摘要。通过检查后才会向手机写入。\n\n'
             f'⚠️ 重要风险须知：\n'
             f'1. 官方降级包在系统更新校验并安装时，会【清除手机全部用户数据（恢复出厂设置）】！\n'
             f'2. 请务必在开始前确保手机重要数据（微信聊天、相册、联系人等）已完成外部备份！\n'
@@ -545,7 +554,8 @@ class Window(QMainWindow):
             QMessageBox.Yes|QMessageBox.No,QMessageBox.No)
         if confirm!=QMessageBox.Yes:return
         def work(c,s):
-            push.push_and_install(serial,local_path,custom_adb,c,s.progress.emit,s.log.emit)
+            push.push_and_install(serial,local_path,custom_adb,c,s.progress.emit,s.log.emit,
+                                  expected_model=model,record=record)
         def done(*args):
             QMessageBox.information(self,'固件已推送',
                 '降级固件已成功推送到手机存储，并已唤起官方系统更新界面！\n\n'
@@ -555,7 +565,7 @@ class Window(QMainWindow):
         self.start_job(work,done,f'正在向 {self.current_device.name} 推送固件…')
     def export_catalog(self):
         opts=self.get_options();dest,_=QFileDialog.getSaveFileName(self,'导出固件目录',str(HOME/(safe_name(opts.model)+'_firmware.json')),'JSON (*.json)')
-        if dest:self.catalog.export(opts.model,opts.region,Path(dest));self.toast('查询记录已导出；临时链接仍受有效期限制')
+        if dest:self.catalog.export(opts.model,opts.region,Path(dest),opts.nvid);self.toast('查询记录已导出；临时链接仍受有效期限制')
     def source_mode_changed(self):
         online=self.source_mode.currentIndex()==1
         for widget in (self.online_channel,self.online_major,self.online_search,self.online_combo):widget.setEnabled(online)
@@ -570,39 +580,53 @@ class Window(QMainWindow):
         id=self.online_combo.currentData();p=next((p for p in self.online_packages if p.id==id),None)
         if p:
             self.source_mode.setCurrentIndex(1);self.source_edit.setText(p.url)
+            self.source_package=p
             self.extract_hint.setText(p.channel+' · '+p.kind+' · 安装基线：'+(p.base_version or '无 / 待读取核验'))
     def use_online_package(self):
         if not self.selected_package:return
         p=self.selected_package
         if p.kind == '补丁包':
-            QMessageBox.information(self, '补丁包提示', '该项目为官方 OPEX 模块/热修复补丁包，内部不含 payload.bin 底层镜像，无需进行镜像提取。\n\n请直接点击【下载完整固件】或【复制链接】下载使用。')
+            QMessageBox.information(self, '补丁包提示', '官方将此项标为 OPEX 模块或热修复补丁。请点击【下载完整固件】或【复制链接】获取补丁。')
             return
         self.source_mode.setCurrentIndex(1)
         self.online_channel.setCurrentIndex(0);self.online_major.setCurrentIndex(0);self.online_search.clear();self.filter_online()
         self.online_combo.setCurrentIndex(max(0,self.online_combo.findData(p.id)))
-        self.source_edit.setText(p.url);self.tabs.setCurrentIndex(2)
+        self.source_edit.setText(p.url);self.source_package=p;self.tabs.setCurrentIndex(2)
         self.output_edit.setText(str(Path(self.settings.get('output_dir',str(HOME/'images')))/safe_name(p.ota+'_'+p.kind)))
         self.inspect_source()
     def choose_local(self):
         path,_=QFileDialog.getOpenFileName(self,'选择 OTA ZIP 或 payload.bin',str(HOME),'OTA 包 (*.zip *.bin);;所有文件 (*)')
         if path:self.source_mode.setCurrentIndex(0);self.source_edit.setText(path);self.inspect_source()
     def invalidate_info(self):
+        self.source_package=None;self.source_generation+=1
         self.info=None;self.image_table.setRowCount(0);self.selection_count.setText('已选 0 个')
+    def package_for_source(self, source):
+        if not source.startswith(('http://', 'https://')):
+            return None
+        if self.source_package and source in (self.source_package.url, self.source_package.original_url):
+            return self.source_package
+        return next((p for p in self.packages if source in (p.url, p.original_url)), None)
     def inspect_source(self):
         source=self.source_edit.text().strip().strip('"')
         if not source:self.toast('请先选择固件文件或在线链接');return
+        record = self.package_for_source(source)
+        if record and record.kind == '补丁包':
+            self.toast('此来源是 OPEX 补丁，请从固件列表下载。');return
+        self.source_package = record
+        generation = self.source_generation
         def work(c,s):
             resolved=tracker.resolve_url(source) if source.startswith(('http://','https://')) else source
             s.progress.emit(0,0,'正在读取 ZIP 目录和 payload manifest…')
             return payload.inspect(resolved,c)
         def done(info):
             # Edits during a background read must not leave a stale source active.
-            if self.source_edit.text().strip().strip('"')!=source:
+            if self.source_generation != generation:
                 self.toast('来源已更改，请重新读取镜像列表');return
+            if record:
+                old_id=record.id;tracker.refine_package(record,info);self.catalog.replace(old_id,record);self.load_catalog()
+                if self.source_generation != generation:
+                    return
             self.info=info;self.populate_images()
-            id=self.online_combo.currentData();p=next((p for p in self.packages if p.id==id),None)
-            if p and source in (p.url,p.original_url):
-                old_id=p.id;tracker.refine_package(p,info);self.catalog.replace(old_id,p);self.load_catalog()
             self.status.setText(f'已读取 {len(info.partitions)} 个镜像；'+('包含增量操作' if info.is_delta else '各镜像无需旧版本数据'))
         self.start_job(work,done,'正在读取固件镜像列表…')
     def populate_images(self):
@@ -657,10 +681,11 @@ def main():
     parser=argparse.ArgumentParser();parser.add_argument('--no-auto-query',action='store_true');parser.add_argument('--self-check',metavar='REPORT_JSON');args=parser.parse_args()
     if args.self_check:os.environ['QT_QPA_PLATFORM']='offscreen'
     app=QApplication(sys.argv[:1]);app.setApplicationName('OPPO 固件工作台');app.setStyle('Fusion');app.setStyleSheet(STYLE)
-    window=Window(args.no_auto_query or bool(args.self_check))
+    window=Window(args.no_auto_query or bool(args.self_check), scan_on_start=not args.self_check)
     if args.self_check:
         from oplus_tool.selfcheck import run
-        try:run(window,args.self_check)
+        try:
+            if not run(window,args.self_check):sys.exit(1)
         except Exception:
             atomic_json(Path(args.self_check),{'ok':False,'error':traceback.format_exc()});sys.exit(1)
         return

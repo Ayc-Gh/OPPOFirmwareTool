@@ -8,13 +8,14 @@ Based on reverse engineering of ColorOS Assistant & OTA Assistant APK:
 5. Launch com.oplus.ota/com.oplus.otaui.activity.EntryActivity with InstallPackage extra.
 """
 from __future__ import annotations
-import os
 import re
 import subprocess
 import time
 from pathlib import Path
+from uuid import uuid4
 from .common import RESOURCE, HOME, CREATE_NO_WINDOW, check_cancel, Cancelled
-from .adb import adb_path, command
+from .adb import adb_path, command, device_from_props, parse_props
+from .push_validation import inspect_package_safety, validate_push_source
 
 PACKAGE_ASSISTANT = "com.color.otaassistant"
 RECEIVER_ACTION = "oplus.intent.action.OTA_ASSISTANT_PC_TOOL_RECEIVER"
@@ -23,53 +24,6 @@ PROVIDER_URI = "content://com.color.otaassistant.DataSharedProvider/data"
 
 ENTRY_ACTIVITY_NEW = "com.oplus.ota/com.oplus.otaui.activity.EntryActivity"
 ENTRY_ACTIVITY_LEGACY = "com.oppo.ota/com.oppo.otaui.activity.EntryActivity"
-
-def inspect_package_safety(local_package: Path, target_device_model="") -> tuple[list[str], list[str]]:
-    """Inspect package safety before push. Returns (warnings, errors)."""
-    warnings, errors = [], []
-    local_package = Path(local_package)
-    if not local_package.is_file():
-        errors.append(f"固件文件不存在：{local_package}")
-        return warnings, errors
-
-    size = local_package.stat().st_size
-    if size < 50 * 1024 * 1024:
-        errors.append(f"固件文件过小（{size / 1024**2:.1f} MiB），官方完整系统包通常在数 GiB 以上，疑似损坏或非完整系统包！")
-        return warnings, errors
-
-    is_zip = False
-    try:
-        with open(local_package, 'rb') as f:
-            header = f.read(16)
-        is_zip = header.startswith(b'PK\x03\x04')
-        is_ozip = b'OPPO' in header[:12] or header.startswith(b'OZIP')
-        if not is_zip and not is_ozip:
-            warnings.append("文件头既非标准 ZIP 也非 OZIP 格式，可能不是官方系统固件包！")
-    except Exception as e:
-        warnings.append(f"文件读取异常: {e}")
-
-    m = re.match(r'^([A-Za-z0-9]+)_', local_package.name)
-    pkg_model = m.group(1).upper() if m else ''
-    if pkg_model and target_device_model:
-        if pkg_model != target_device_model.upper():
-            warnings.append(
-                f"【机型不匹配警告】固件文件名前缀为【{pkg_model}】，但当前连接手机为【{target_device_model}】！\n"
-                "跨机型刷机将导致手机官方系统更新报错或校验拒绝。"
-            )
-
-    if is_zip:
-        try:
-            from .payload import inspect
-            info = inspect(str(local_package))
-            if info and info.is_delta:
-                errors.append(
-                    "【拦截警告】检测到此固件为【增量补丁包 (Delta OTA)】！\n"
-                    "官方降级必须使用【全量包 (Full OTA)】，增量包缺乏完整分区无法用于降级刷机！"
-                )
-        except Exception:
-            pass
-
-    return warnings, errors
 
 def get_assistant_apk(is_legacy=False, custom_dir="") -> Path:
     """Find the OTA assistant APK matching device Android/ColorOS version."""
@@ -130,13 +84,8 @@ def get_device_free_space(serial: str, custom_adb="", path="/sdcard") -> int:
         pass
     return -1
 
-def push_package_file(serial: str, local_path: Path, remote_path: str, custom_adb="", cancel=None, progress=None, log=None):
-    """Push package file to device with progress monitoring and cancel support."""
-    local_size = local_path.stat().st_size
-    if log:
-        log(f"开始推送固件包至手机存储：{remote_path} ({local_size / 1024**3:.2f} GiB)…")
-
-    cmd = [adb_path(custom_adb), "-s", serial, "push", str(local_path), remote_path]
+def _run_transfer_command(cmd, cancel, on_poll=None):
+    """Drain adb output while polling for cancellation; always reap the writer."""
     proc = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
@@ -147,60 +96,66 @@ def push_package_file(serial: str, local_path: Path, remote_path: str, custom_ad
         creationflags=CREATE_NO_WINDOW,
     )
 
-    start_time = time.monotonic()
-    last_reported = 0
     try:
-        while proc.poll() is None:
+        while True:
             if cancel is not None and cancel.is_set():
-                proc.terminate()
-                try:
-                    proc.wait(timeout=3)
-                except Exception:
-                    proc.kill()
-                try:
-                    command(["-s", serial, "shell", "rm", "-f", remote_path], custom_adb, timeout=10)
-                except Exception:
-                    pass
-                raise Cancelled("降级包推送已被用户取消。")
+                raise Cancelled("降级包推送已取消。")
+            try:
+                stdout, stderr = proc.communicate(timeout=0.5)
+                break
+            except subprocess.TimeoutExpired:
+                if on_poll:
+                    on_poll()
+    finally:
+        if proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.communicate(timeout=3)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.communicate()
 
-            now = time.monotonic()
-            if now - last_reported >= 1.0:
-                last_reported = now
-                try:
-                    out = command(["-s", serial, "shell", "stat", "-c", "%s", remote_path], custom_adb, timeout=3).strip()
-                    if out.isdigit():
-                        current = int(out)
-                        if progress:
-                            speed = current / (now - start_time) if (now - start_time) > 0 else 0
-                            progress(current, local_size, f"正在推送固件至手机… {current / 1024**2:.1f} / {local_size / 1024**2:.1f} MiB ({speed / 1024**2:.1f} MiB/s)")
-                except Exception:
-                    pass
-            time.sleep(0.5)
+    if proc.returncode:
+        raise RuntimeError(f"ADB {cmd[3]} 失败：{stderr.strip() or stdout.strip()}")
+    return stdout
 
-        stdout, stderr = proc.communicate()
-        if proc.returncode != 0:
-            raise RuntimeError(f"ADB 推送失败: {stderr.strip() or stdout.strip()}")
 
-        if progress:
-            progress(local_size, local_size, "固件推送完成，正在校验手机端文件…")
-    except Cancelled:
-        raise
-    except Exception as e:
-        if cancel and cancel.is_set():
-            raise Cancelled("已取消推送")
-        raise
+def _push_package_file(serial: str, local_path: Path, remote_path: str, custom_adb="", cancel=None, progress=None, log=None, *, expected_sha256):
+    """Transfer to an exclusively reserved path and verify the phone's copy."""
+    local_size = local_path.stat().st_size
+    if log:
+        log(f"开始推送固件包至手机存储：{remote_path} ({local_size / 1024**3:.2f} GiB)…")
+    start_time = time.monotonic()
+    last_reported = start_time
+    adb = [adb_path(custom_adb), "-s", serial]
 
-    try:
-        remote_size_str = command(["-s", serial, "shell", "stat", "-c", "%s", remote_path], custom_adb, timeout=10).strip()
-        if remote_size_str.isdigit():
-            remote_size = int(remote_size_str)
-            if remote_size != local_size:
-                raise RuntimeError(f"手机端文件大小 ({remote_size}) 与本地 ({local_size}) 不一致，推送不完整。")
-    except Exception as e:
-        if "不一致" in str(e):
-            raise
-        if log:
-            log(f"已推送完成（校验跳过: {e}）")
+    def report_progress():
+        nonlocal last_reported
+        now = time.monotonic()
+        if now - last_reported < 1:
+            return
+        last_reported = now
+        try:
+            size = command(["-s", serial, "shell", "stat", "-c", "%s", remote_path], custom_adb, timeout=3).strip()
+        except (RuntimeError, OSError, subprocess.TimeoutExpired):
+            return  # The file may not be present yet.
+        if size.isdigit():
+            current = int(size)
+            speed = current / (now - start_time) / 1024**2
+            progress(current, local_size, f"正在推送固件至手机… {current / 1024**2:.1f} / {local_size / 1024**2:.1f} MiB ({speed:.1f} MiB/s)")
+
+    _run_transfer_command([*adb, "push", str(local_path), remote_path], cancel, report_progress if progress else None)
+    if progress:
+        progress(0, 0, "固件推送完成，正在核验手机端文件大小和 SHA256…")
+    remote_size = command(["-s", serial, "shell", "stat", "-c", "%s", remote_path], custom_adb, timeout=10).strip()
+    if not remote_size.isdigit() or int(remote_size) != local_size:
+        raise RuntimeError(f"无法确认手机端文件大小与本地一致（手机：{remote_size!r}，本地：{local_size}）。")
+    output = _run_transfer_command([*adb, "shell", "sha256sum", remote_path], cancel)
+    fields = output.strip().split()
+    if len(fields) != 2 or fields[1] != remote_path or not re.fullmatch("[0-9A-Fa-f]{64}", fields[0]):
+        raise RuntimeError("手机未返回可核验的固件 SHA256。")
+    if fields[0].lower() != expected_sha256:
+        raise RuntimeError("手机端固件 SHA256 与本地文件不一致。")
 
 def trigger_downgrade(serial: str, remote_path: str, custom_adb="", is_legacy=False, log=None):
     """Wake assistant, write Provider data, and start system OTA EntryActivity."""
@@ -235,54 +190,86 @@ def trigger_downgrade(serial: str, remote_path: str, custom_adb="", is_legacy=Fa
         log(f"唤起官方系统更新组件：{entry}…")
     cmd_start = ["-s", serial, "shell", "am", "start", "-n", entry, "-e", "InstallPackage", remote_path]
     out = command(cmd_start, custom_adb, timeout=15)
-    if "Error" in out or "Exception" in out:
+    if "error" in out.lower() or "exception" in out.lower():
         if log:
             log(f"主入口唤起异常，尝试备用入口… ({out.strip()})")
         alt_entry = ENTRY_ACTIVITY_NEW if is_legacy else ENTRY_ACTIVITY_LEGACY
-        command(["-s", serial, "shell", "am", "start", "-n", alt_entry, "-e", "InstallPackage", remote_path], custom_adb, timeout=15)
+        alt_out = command(["-s", serial, "shell", "am", "start", "-n", alt_entry, "-e", "InstallPackage", remote_path], custom_adb, timeout=15)
+        if "error" in alt_out.lower() or "exception" in alt_out.lower():
+            raise RuntimeError(f"手机报告两个系统更新入口均未能唤起：{alt_out.strip()}")
 
     if log:
         log("官方系统更新程序已成功唤起！请在手机屏幕上确认并继续完成降级安装。")
 
-def push_and_install(serial: str, local_package: Path, custom_adb="", cancel=None, progress=None, log=None):
+def push_and_install(serial: str, local_package: Path, custom_adb="", cancel=None, progress=None, log=None,
+                     *, expected_model="", record=None):
     """Full workflow: preflight -> install assistant -> check storage -> push -> trigger."""
     if cancel is not None: check_cancel(cancel)
     local_package = Path(local_package)
     if not local_package.is_file():
         raise FileNotFoundError(f"降级固件文件不存在：{local_package}")
 
-    try:
-        props = command(["-s", serial, "shell", "getprop", "ro.build.version.release"], custom_adb, timeout=10).strip()
-        android_ver = int(props) if props.isdigit() else 12
-    except Exception:
-        android_ver = 12
+    props = parse_props(command(["-s", serial, "shell", "getprop"], custom_adb, timeout=15))
+    device = device_from_props(serial, props)
+    if not device or not device.model:
+        raise ValueError("无法核实已连接设备的机型，请重新读取设备。")
+    if expected_model and device.model.casefold() != expected_model.casefold():
+        raise ValueError("设备型号自确认后已变化，请重新选择设备。")
+    local_sha256 = validate_push_source(local_package, device, record, cancel, progress)
+    release = props.get("ro.build.version.release", "").split(".")[0]
+    android_ver = int(release) if release.isdigit() else 12
     is_legacy = android_ver < 11
 
     if log:
         log(f"目标设备: {serial} (Android {android_ver})，适配模式: {'ColorOS 11.3 早期版本' if is_legacy else 'ColorOS 11.3+ 现代版'}")
 
     if cancel is not None: check_cancel(cancel)
-    if not check_assistant_installed(serial, custom_adb):
-        apk_path = get_assistant_apk(is_legacy=is_legacy)
-        install_assistant(serial, apk_path, custom_adb, log)
-    else:
-        if log:
-            log("设备已安装降级伴生应用，跳过安装。")
-
-    if cancel is not None: check_cancel(cancel)
     req_size = local_package.stat().st_size
     avail = get_device_free_space(serial, custom_adb)
-    if avail > 0:
+    if avail >= 0:
         if log:
             log(f"手机存储可用空间: {avail / 1024**3:.2f} GiB，固件包所需空间: {req_size / 1024**3:.2f} GiB")
         if avail < req_size + 300 * 1024 * 1024:
             raise RuntimeError(f"手机存储空间不足！剩余空间 {avail / 1024**3:.2f} GiB，需要至少 {(req_size + 300*1024*1024) / 1024**3:.2f} GiB。请清理手机存储后重试。")
 
-    suffix = local_package.suffix if local_package.suffix.lower() in ('.ozip', '.zip') else '.ozip'
-    target_remote = f"/sdcard/{local_package.stem}{suffix}"
-    push_package_file(serial, local_package, target_remote, custom_adb, cancel, progress, log)
-
     if cancel is not None: check_cancel(cancel)
-    if progress:
-        progress(req_size, req_size, "正在唤起手机系统更新程序…")
-    trigger_downgrade(serial, target_remote, custom_adb, is_legacy, log)
+    if not check_assistant_installed(serial, custom_adb):
+        apk_path = get_assistant_apk(is_legacy=is_legacy)
+        install_assistant(serial, apk_path, custom_adb, log)
+    elif log:
+        log("设备已安装降级伴生应用，跳过安装。")
+
+    suffix = '.zip' if local_package.suffix.lower() == '.zip' else '.ozip'
+    remote_dir = f"/sdcard/OPPOFirmwareTool-{uuid4().hex}"
+    target_remote = f"{remote_dir}/firmware{suffix}"
+    shell = ["-s", serial, "shell"]
+    if cancel is not None:
+        check_cancel(cancel)
+    # mkdir without -p is the ownership boundary. On a collision or uncertain
+    # result we cannot claim this directory and must never remove anything in it.
+    command([*shell, "mkdir", remote_dir], custom_adb, timeout=10)
+    try:
+        _push_package_file(serial, local_package, target_remote, custom_adb, cancel, progress, log, expected_sha256=local_sha256)
+        if progress:
+            progress(req_size, req_size, "正在唤起手机系统更新程序…")
+        if cancel is not None:
+            check_cancel(cancel)
+    except Exception:
+        try:
+            command([*shell, "rm", "-f", target_remote], custom_adb, timeout=10)
+            command([*shell, "rmdir", remote_dir], custom_adb, timeout=10)
+        except Exception as cleanup_error:
+            if log:
+                log(f"手机端任务目录可能有残留：{remote_dir}（{cleanup_error}）")
+        raise
+
+    # An ADB error can arrive after Android has accepted the path. From this
+    # point the updater may still be reading the verified file.
+    try:
+        trigger_downgrade(serial, target_remote, custom_adb, is_legacy, log)
+    except Exception as exc:
+        message = (f"无法确认手机系统更新程序的交接结果。已保留核验通过的固件：{target_remote}。"
+                   f"请查看手机更新界面，确认安装状态后再处理该文件。详情：{exc}")
+        if log:
+            log(message)
+        raise RuntimeError(message) from exc

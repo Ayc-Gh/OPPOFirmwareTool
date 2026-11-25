@@ -16,7 +16,7 @@ def main():
     def log(s):logs.append(s);print(s,flush=True)
     def emit(packages):db.put(packages)
     tracker.query_all(options,threading.Event(),lambda a,b,s:print(f'[{a}/{b}] {s}',flush=True),log,emit,baselines=db.baselines(d.model,d.region))
-    records=db.list(d.model,d.region)
+    records=db.list(d.model,d.region,d.nvid)
     summary={'device':{'name':d.name,'model':d.model,'codename':d.codename,'firmware':d.firmware,'slot':d.slot,'region':d.region,'coloros':d.coloros},
              'packages':[{'channel':p.channel,'kind':p.kind,'version':p.version,'size':p.size,'published':p.published,'major':p.major,'component':p.component,'evidence':p.evidence,'base_version':p.base_version} for p in records],
              'logs':logs}
